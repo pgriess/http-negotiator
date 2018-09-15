@@ -148,7 +148,12 @@ const performNegotiation = function(clientValues, serverValues) {
             continue;
         }
 
-        scores.push([cv[0], cv[1] * sv[1]]);
+        const score = cv[1] * sv[1];
+        if (score <= 0) {
+            continue;
+        }
+
+        scores.push([cv[0], score]);
     }
 
     if (scores.length === 0) {
