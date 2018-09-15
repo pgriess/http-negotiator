@@ -14,7 +14,7 @@ const assert = require('assert');
  *  - The header objects specified have values which conform to section 7 of RFC
  *    7230. For eample, Accept, Accept-Encoding support this. User-Agent does not.
  */
-const splitHeaders = function(headers) {
+exports.splitHeaders = function(headers) {
     return headers.map(function(ho) { return ho['value']; })
         .reduce(
             function(acc, val) {
@@ -22,19 +22,6 @@ const splitHeaders = function(headers) {
             },
             []);
 };
-assert.deepStrictEqual(
-    splitHeaders([
-        {'key': 'Accept-Encoding', 'value': 'gzip, br, identity'}]),
-    ['gzip', 'br', 'identity']);
-assert.deepStrictEqual(
-    splitHeaders([
-        {'key': 'Accept-Encoding', 'value': 'deflate, gzip, br'},
-        {'key': 'Accept-Encoding', 'value': 'identity, deflate'}]),
-    ['deflate', 'gzip', 'br', 'identity', 'deflate']);
-assert.deepStrictEqual(
-    splitHeaders([
-        {'key': 'Accept-Encoding', 'value': 'gzip , br,identity '}]),
-    ['gzip', 'br', 'identity']);
 
 /*
  * Parse an HTTP header value with optional attributes, returning a tuple of
@@ -42,7 +29,7 @@ assert.deepStrictEqual(
  *
  * For example 'foo;a=1;b=2' would return ['foo', {'a': 1, 'b': 2}].
  */
-const parseHeaderValue = function(v) {
+exports.parseHeaderValue = function(v) {
     const s = v.split(';');
     if (s.length == 1) {
         return [v, {}];
@@ -60,10 +47,6 @@ const parseHeaderValue = function(v) {
 
     return [s[0], attrs];
 };
-assert.deepStrictEqual(parseHeaderValue('foo'), ['foo', {}]);
-assert.deepStrictEqual(
-    parseHeaderValue('foo;a=1;b=2'),
-    ['foo', {'a': '1', 'b': '2'}]);
 
 /*
  * Given an array of (value name, attribute dictionary) tuples, return a sorted
@@ -78,7 +61,7 @@ assert.deepStrictEqual(
  *
  *      [['a', {'q': '5'}], ['a', {'q': '2'}], ['b', {'q': '3'}]]
  */
-const sortHeadersByQValue = function(headerValues) {
+exports.sortHeadersByQValue = function(headerValues) {
     /* Parse q attributes, ensuring that all to 1 */
     var headerValuesWithQValues = headerValues.map(function(vt) {
         var vn = vt[0];
@@ -106,32 +89,6 @@ const sortHeadersByQValue = function(headerValues) {
     /* Sort by values with highest 'q' attribute */
     return filteredValues.sort(function(a, b) { return b[1] - a[1]; });
 };
-assert.deepStrictEqual(
-    sortHeadersByQValue([
-        ['gzip', {'q': '0'}],
-        ['gzip', {}]
-    ]),
-    [['gzip', 1]]);
-assert.deepStrictEqual(
-    sortHeadersByQValue([['gzip', {'q': '0.25'}]]),
-    [['gzip', 0.25]]);
-assert.deepStrictEqual(
-    sortHeadersByQValue([
-        ['gzip', {}],
-        ['gzip', {'q': '0'}],
-        ['gzip', {'q': '50'}],
-        ['gzip', {'q': '25'}],
-        ['gzip', {'q': '100'}],
-    ]),
-    [['gzip', 100]]);
-assert.deepStrictEqual(
-    sortHeadersByQValue([
-        ['br', {}],
-        ['gzip', {'q': '0'}],
-        ['gzip', {}],
-        ['br', {'q': '100'}]
-    ]),
-    [['br', 100], ['gzip', 1]]);
 
 /*
  * Perform content negotiation.
@@ -139,7 +96,7 @@ assert.deepStrictEqual(
  * Given sorted arrays of supported (value name, q-value) tuples, select a
  * value that is mutuaully acceptable. Returns null is nothing could be found.
  */
-const performNegotiation = function(clientValues, serverValues) {
+exports.performNegotiation = function(clientValues, serverValues) {
     var scores = [];
     for (var i = 0; i < clientValues.length; ++i) {
         const cv = clientValues[i];
@@ -162,31 +119,3 @@ const performNegotiation = function(clientValues, serverValues) {
 
     return scores.sort(function(a, b) { return b[1] - a[1]; })[0][0];
 };
-assert.deepStrictEqual(
-    performNegotiation(
-        [['a', 1], ['b', 1], ['c', 1]],
-        [['c', 1], ['z', 1]]
-    ),
-    'c'
-);
-assert.deepStrictEqual(
-    performNegotiation(
-        [['a', 1], ['b', 1], ['c', 1]],
-        [['z', 1]]
-    ),
-    null
-);
-assert.deepStrictEqual(
-    performNegotiation(
-        [['a', 1], ['b', 1], ['c', 1]],
-        [['b', 0.9], ['c', 1]]
-    ),
-    'c'
-);
-assert.deepStrictEqual(
-    performNegotiation(
-        [['a', 1], ['b', 1], ['c', 0.8]],
-        [['b', 0.9], ['c', 1]]
-    ),
-    'b'
-);
