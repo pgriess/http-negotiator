@@ -1,5 +1,3 @@
-const assert = require('assert');
-
 /*
  * Given an array of AWS Lambda header objects for headers that support
  * ','-delimited list syntax, return a single array containing the values from
