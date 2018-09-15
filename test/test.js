@@ -4,9 +4,8 @@ var assert = require('assert');
 describe('splitHeaders()', function() {
     it('should split a simple single header', function() {
         assert.deepStrictEqual(
-            hcn.splitHeaders([{
-                    'key': 'Accept-Encoding',
-                    'value': 'gzip, br, identity'}]),
+            hcn.splitHeaders([
+                {'key': 'Accept-Encoding', 'value': 'gzip, br, identity'}]),
             ['gzip', 'br', 'identity']
         );
     });
@@ -23,6 +22,18 @@ describe('splitHeaders()', function() {
                 {'key': 'Accept-Encoding', 'value': 'gzip , br,identity '}]),
             ['gzip', 'br', 'identity']);
     });
+    it('should not be confused by / characters', function() {
+        assert.deepStrictEqual(
+            hcn.splitHeaders([
+                {'key': 'Accept', 'value': 'image/png, image/webp'}]),
+            ['image/png', 'image/webp']);
+    });
+    it('should not be confused by * characters', function() {
+        assert.deepStrictEqual(
+            hcn.splitHeaders([
+                {'key': 'Accept', 'value': 'image/*, */*'}]),
+            ['image/*', '*/*']);
+    });
 });
 
 describe('parseHeaderValue()', function() {
@@ -33,6 +44,11 @@ describe('parseHeaderValue()', function() {
         assert.deepStrictEqual(
             hcn.parseHeaderValue('foo;a=1;b=2'),
             ['foo', {'a': '1', 'b': '2'}]);
+    });
+    it('should handle attributes after wildcards', function() {
+        assert.deepStrictEqual(
+            hcn.parseHeaderValue('image/*;a=1;b=2'),
+            ['image/*', {'a': '1', 'b': '2'}]);
     });
 });
 
