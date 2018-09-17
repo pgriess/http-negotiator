@@ -2,7 +2,7 @@
  * Helper to construct value tuples
  */
 const valueTuple = function(name, paramObj) {
-    return [name, new Map(Object.entries(paramObj))];
+    return [name, new Map(Object.entries(paramObj || {}))];
 };
 exports.valueTuple = valueTuple;
 
@@ -90,21 +90,25 @@ const performNegotiation = function(clientValues, serverValues, matcher, compara
     var scores = [];
     serverValues.forEach(function(sv) {
         /* Get all server values that match the given client value */
-        const matchingCv = clientValues.filter(function(cv) { return matcher(sv[0], cv[0]); });
+        const matchingCv = clientValues.filter(function(cv) { return matcher(sv, cv); });
         if (matchingCv.length === 0) {
             return;
         }
 
         /* Pick the most specific server value for the current client value */
         const cv = matchingCv
-            .sort(function(a, b) { return comparator(a[0], b[0]); })[0];
+            .sort(function(a, b) { return comparator(a, b); })[0];
 
         const score = cv[1].get('q') * sv[1].get('q');
         if (score <= 0) {
             return;
         }
 
-        /* Note that we push the server value here as it's expected not to be a wildcard */
+        /*
+         * Note that we push the server value here as it's expected not to be a wildcard
+         * 
+         * XXX: Need return full tuple not just name
+         */
         scores.push([sv[0], score]);
     });
 
@@ -119,9 +123,55 @@ exports.performNegotiation = performNegotiation;
 /*
  * Matcher and comparator for strict literals.
  */
-const strictValueMatch = function(a, b) { return a === b; };
+const strictValueMatch = function(st, ct) {
+    let sn = st[0];
+    let sp = st[1];
+    let cn = ct[0];
+    let cp = ct[1]
+
+    if (sn !== cn) {
+        return false;
+    }
+
+    for (spt of sp) {
+        let spn = spt[0];
+        let spv = spt[1];
+
+        /* The 'q' parameter is special; skip it */
+        if (spn === 'q') {
+            continue;
+        }
+
+        /* 
+         * If the client hasn't specified a value for this parameter, consider
+         * that implicit acceptance; skip it
+         */
+        if (!cp.has(spn)) {
+            continue;
+        }
+
+        if (spv !== cp.get(spn)) {
+            return false;
+        }
+    }
+
+    for (cpt of cp) {
+        let cpn = cpt[0];
+
+        if (cpn !== 'q' && !sp.has(cpn)) {
+            return false;
+        }
+    }
+
+    return true;
+
+    return true;
+};
 exports.strictValueMatch = strictValueMatch;
-const strictValueCompare = function(a, b) { return 0; };
+
+const strictValueCompare = function(at, bt) {
+    return 0;
+};
 exports.strictValueCompare = strictValueCompare;
 
 /*
@@ -130,26 +180,33 @@ exports.strictValueCompare = strictValueCompare;
  * For example, 'a' and '*' should match, but 'a' and 'b' should not. Wildcard
  * matches should take lower precedence than exact matches.
  */
-const wildcardValueMatch = function(a, b) {
-    if (a === '*' || b === '*') {
-        return true;
+const wildcardValueMatch = function(st, ct) {
+    let sn = st[0];
+    let cn = ct[0];
+
+    if (sn === '*' || cn === '*') {
+        return strictValueMatch(['*', st[1]], ['*', ct[1]]);
     }
 
-    return strictValueMatch(a, b);
+    return strictValueMatch(st, ct);
 };
 exports.wildcardValueMatch = wildcardValueMatch;
-const wildcardValueCompare = function(a, b) {
-    if (a === '*' || b === '*') {
-        if (a === '*' && b === '*') {
+
+const wildcardValueCompare = function(at, bt) {
+    let an = at[0];
+    let bn = bt[0];
+
+    if (an === '*' || bn === '*') {
+        if (an === '*' && bn === '*') {
             return 0;
-        } else if (a === '*') {
+        } else if (an === '*') {
             return 1;
         } else {
             return -1;
         }
     }
 
-    return strictValueCompare(a, b);
+    return strictValueCompare(at, bt);
 };
 exports.wildcardValueCompare = wildcardValueCompare;
 
@@ -160,27 +217,38 @@ exports.wildcardValueCompare = wildcardValueCompare;
  * 'text/javascript' should not. Wildcard matches should take lower precedence
  * than exact matches.
  */
-const mediaRangeValueMatch = function(a, b) {
-    const aTypes = a.split('/');
-    const bTypes = b.split('/');
+const mediaRangeValueMatch = function(at, bt) {
+    let an = at[0];
+    let ap = at[1];
+    let bn = bt[0];
+    let bp = bt[1]
 
-    return wildcardValueMatch(aTypes[0], bTypes[0]) &&
-        wildcardValueMatch(aTypes[1], bTypes[1]);
+    const aTypes = an.split('/');
+    const bTypes = bn.split('/');
+
+    return wildcardValueMatch([aTypes[0], ap], [bTypes[0], bp]) &&
+        wildcardValueMatch([aTypes[1], ap], [bTypes[1], bp]);
 };
 exports.mediaRangeValueMatch = mediaRangeValueMatch;
-const mediaRangeValueCompare = function(a, b) {
-    const aTypes = a.split('/');
-    const bTypes = b.split('/');
 
-    const c = wildcardValueCompare(aTypes[0], bTypes[0])
+const mediaRangeValueCompare = function(at, bt) {
+    let an = at[0];
+    let ap = at[1];
+    let bn = bt[0];
+    let bp = bt[1]
+
+    const aTypes = an.split('/');
+    const bTypes = bn.split('/');
+
+    /* XXX: This may be wrong. Should we compare parameters entirely ater the types? */
+    const c = wildcardValueCompare([aTypes[0], ap], [bTypes[0], bp]);
     if (c !== 0) {
         return c;
     }
 
-    return wildcardValueCompare(aTypes[1], bTypes[1]);
+    return wildcardValueCompare([aTypes[1], ap], [bTypes[1], bp]);
 };
 exports.mediaRangeValueCompare = mediaRangeValueCompare;
-
 
 /*
  * Split headers from AWS input.
@@ -201,6 +269,8 @@ exports.awsSplitHeaderValue = awsSplitHeaderValue;
  * Applications should probably just use this directly.
  */
 const awsNegotiateEncoding = function(headers, serverValues) {
+    const IDENTITY = valueTuple('identity', {'q': 1});
+
     /* 
      * No Accept-Encoding header means the client will accept anything. Pick the
      * highest-scoring server value and go with that.
@@ -230,8 +300,8 @@ const awsNegotiateEncoding = function(headers, serverValues) {
      *      the absolute last option which feels like it's really the intent of the
      *      RFC.
      */
-    if (!parsedValues.some(function(v) { return wildcardValueMatch(v[0], 'identity'); })) {
-        parsedValues.unshift(valueTuple('identity', {'q': 1}));
+    if (!parsedValues.some((v) => { return wildcardValueMatch(v, IDENTITY); })) {
+        parsedValues.unshift(IDENTITY);
     }
 
     return performNegotiation(
