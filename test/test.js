@@ -42,18 +42,26 @@ describe('splitHeaders()', function() {
 
 describe('parseHeaderValue()', function() {
     it('should handle items with no attributes', function() {
-        assert.deepStrictEqual(hcn.parseHeaderValue('foo'), ['foo', {}]);
+        assert.deepStrictEqual(
+            hcn.parseHeaderValue('foo'),
+            ['foo', new Map([['q', 1]])]);
     });
     it('should parse multiple attributes with values', function() {
         assert.deepStrictEqual(
             hcn.parseHeaderValue('foo;a=1;b=2'),
-            ['foo', {'a': '1', 'b': '2'}]
+            ['foo', new Map([['q', 1], ['a', '1'], ['b', '2']])]
         );
     });
     it('should handle attributes after wildcards', function() {
         assert.deepStrictEqual(
             hcn.parseHeaderValue('image/*;a=1;b=2'),
-            ['image/*', {'a': '1', 'b': '2'}]
+            ['image/*', new Map([['q', 1], ['a', '1'], ['b', '2']])]
+        );
+    });
+    it('should not override an explicitly specified q parameter', function() {
+        assert.deepStrictEqual(
+            hcn.parseHeaderValue('image/*;a=1;b=2;q=0.25'),
+            ['image/*', new Map([['a', '1'], ['b', '2'], ['q', 0.25]])]
         );
     });
 });
@@ -61,24 +69,21 @@ describe('parseHeaderValue()', function() {
 describe('sortHeadersbyQValue', function() {
     it('should respect q attribute values', function() {
         assert.deepStrictEqual(
-            hcn.sortHeadersByQValue([['gzip', {'q': '0.25'}]]),
-            [['gzip', 0.25]]
-        );
-    });
-    it('should infer a q attribute value of 1 if un-specified', function() {
-        assert.deepStrictEqual(
-            hcn.sortHeadersByQValue([['gzip', {}]]),
-            [['gzip', 1]]
+            hcn.sortHeadersByQValue([hcn.valueTuple('gzip', {'q': 0.25})]),
+            [hcn.valueTuple('gzip', {'q': 0.25})]
         );
     });
     it('should allow later items to override earlier ones', function() {
         assert.deepStrictEqual(
             hcn.sortHeadersByQValue([
-                ['gzip', {}],
-                ['br', {'q': '0.8'}],
-                ['gzip', {'q': '0.25'}],
+                hcn.valueTuple('gzip', {'q': 1}),
+                hcn.valueTuple('br', {'q': 0.8}),
+                hcn.valueTuple('gzip', {'q': 0.25})
             ]),
-            [['br', 0.8], ['gzip', 0.25]]
+            [
+                hcn.valueTuple('br', {'q': 0.8}),
+                hcn.valueTuple('gzip', {'q': 0.25})
+            ]
         );
     });
 });
@@ -87,8 +92,15 @@ describe('performNegotiation()', function() {
     it('should select the common value', function() {
         assert.deepStrictEqual(
             hcn.performNegotiation(
-                [['a', 1], ['b', 1], ['c', 1]],
-                [['c', 1], ['z', 1]],
+                [
+                    hcn.valueTuple('a', {'q': 1}),
+                    hcn.valueTuple('b', {'q': 1}),
+                    hcn.valueTuple('c', {'q': 1})
+                ],
+                [
+                    hcn.valueTuple('c', {'q': 1}),
+                    hcn.valueTuple('z', {'q': 1})
+                ],
                 hcn.strictValueMatch,
                 hcn.strictValueCompare
             ),
@@ -98,8 +110,14 @@ describe('performNegotiation()', function() {
     it('should fail if there are no common values', function() {
         assert.deepStrictEqual(
             hcn.performNegotiation(
-                [['a', 1], ['b', 1], ['c', 1]],
-                [['z', 1]],
+                [
+                    hcn.valueTuple('a', {'q': 1}),
+                    hcn.valueTuple('b', {'q': 1}),
+                    hcn.valueTuple('c', {'q': 1})
+                ],
+                [
+                    hcn.valueTuple('z', {'q': 1})
+                ],
                 hcn.strictValueMatch,
                 hcn.strictValueCompare
             ),
@@ -109,8 +127,15 @@ describe('performNegotiation()', function() {
     it('should take client weights into account', function() {
         assert.deepStrictEqual(
             hcn.performNegotiation(
-                [['a', 1], ['b', 1], ['c', 0.8]],
-                [['b', 0.9], ['c', 1]],
+                [
+                    hcn.valueTuple('a', {'q': 1}),
+                    hcn.valueTuple('b', {'q': 1}),
+                    hcn.valueTuple('c', {'q': 0.8})
+                ],
+                [
+                    hcn.valueTuple('b', {'q': 0.9}),
+                    hcn.valueTuple('c', {'q': 1})
+                ],
                 hcn.strictValueMatch,
                 hcn.strictValueCompare
             ),
@@ -120,8 +145,15 @@ describe('performNegotiation()', function() {
     it('should take server weights into account', function() {
         assert.deepStrictEqual(
             hcn.performNegotiation(
-                [['a', 1], ['b', 1], ['c', 1]],
-                [['b', 0.9], ['c', 1]],
+                [
+                    hcn.valueTuple('a', {'q': 1}),
+                    hcn.valueTuple('b', {'q': 1}),
+                    hcn.valueTuple('c', {'q': 1})
+                ],
+                [
+                    hcn.valueTuple('b', {'q': 0.9}),
+                    hcn.valueTuple('c', {'q': 1})
+                ],
                 hcn.strictValueMatch,
                 hcn.strictValueCompare
             ),
@@ -131,8 +163,12 @@ describe('performNegotiation()', function() {
     it('should consider 0-weights as a non-match', function() {
         assert.deepStrictEqual(
             hcn.performNegotiation(
-                [['a', 1]],
-                [['a', 0]],
+                [
+                    hcn.valueTuple('a', {'q': 1}),
+                ],
+                [
+                    hcn.valueTuple('a', {'q': 0}),
+                ],
                 hcn.strictValueMatch,
                 hcn.strictValueCompare
             ),
@@ -142,8 +178,14 @@ describe('performNegotiation()', function() {
     it('should support wildcard matching', function() {
         assert.deepStrictEqual(
             hcn.performNegotiation(
-                [['a', 1], ['*', 0.5]],
-                [['a', 0.25], ['b', 1]],
+                [
+                    hcn.valueTuple('a', {'q': 1}),
+                    hcn.valueTuple('*', {'q': 0.5})
+                ],
+                [
+                    hcn.valueTuple('a', {'q': 0.25}),
+                    hcn.valueTuple('b', {'q': 1})
+                ],
                 hcn.wildcardValueMatch,
                 hcn.wildcardValueCompare
             ),
@@ -153,8 +195,14 @@ describe('performNegotiation()', function() {
     it('should not apply wildcard to earlier values', function() {
         assert.deepStrictEqual(
             hcn.performNegotiation(
-                [['a', 1], ['*', 0.5]],
-                [['a', 0.8], ['b', 1]],
+                [
+                    hcn.valueTuple('a', {'q': 1}),
+                    hcn.valueTuple('*', {'q': 0.5}),
+                ],
+                [
+                    hcn.valueTuple('a', {'q': 0.8}),
+                    hcn.valueTuple('b', {'q': 1})
+                ],
                 hcn.wildcardValueMatch,
                 hcn.wildcardValueCompare
             ),
@@ -251,7 +299,12 @@ describe('awsNegotiateEncoding', function() {
         assert.equal(
             hcn.awsNegotiateEncoding(
                 {'user-agent': [{'key': 'User-Agent', 'value': 'Firefox'}]},
-                [['gzip', 0.5], ['br', 1], ['identity', 0.1]]),
+                [
+                    hcn.valueTuple('gzip', {'q': 0.5}),
+                    hcn.valueTuple('br', {'q': 1}),
+                    hcn.valueTuple('identity', {'q': 0.1})
+                ]
+            ),
             'br'
         );
     });
@@ -260,7 +313,11 @@ describe('awsNegotiateEncoding', function() {
             hcn.awsNegotiateEncoding(
                 {'accept-encoding':
                     [{'key': 'Accept-Encoding', 'value': 'gzip;q=0.5'}]},
-                [['identity', 1], ['gzip', 1]]),
+                [
+                    hcn.valueTuple('identity', {'q': 1}),
+                    hcn.valueTuple('gzip', {'q': 1})
+                ]
+            ),
             'identity'
         );
     });
@@ -269,7 +326,11 @@ describe('awsNegotiateEncoding', function() {
             hcn.awsNegotiateEncoding(
                 {'accept-encoding':
                     [{'key': 'Accept-Encoding', 'value': 'gzip;q=0.5, identity;q=0'}]},
-                [['identity', 1], ['gzip', 1]]),
+                [
+                    hcn.valueTuple('identity', {'q': 1}),
+                    hcn.valueTuple('gzip', {'q': 1}),
+                ]
+            ),
             'gzip'
         );
     });
@@ -278,7 +339,11 @@ describe('awsNegotiateEncoding', function() {
             hcn.awsNegotiateEncoding(
                 {'accept-encoding':
                     [{'key': 'Accept-Encoding', 'value': 'gzip;q=0.5, *;q=0'}]},
-                [['identity', 1], ['gzip', 1]]),
+                [
+                    hcn.valueTuple('identity', {'q': 1}),
+                    hcn.valueTuple('gzip', {'q': 1}),
+                ]
+            ),
             'gzip'
         );
     });

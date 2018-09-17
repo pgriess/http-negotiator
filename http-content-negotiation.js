@@ -1,4 +1,12 @@
 /*
+ * Helper to construct value tuples
+ */
+const valueTuple = function(name, paramObj) {
+    return [name, new Map(Object.entries(paramObj))];
+};
+exports.valueTuple = valueTuple;
+
+/*
  * Given an array of AWS Lambda header objects for headers that support
  * ','-delimited list syntax, return a single array containing the values from
  * all of these lists.
@@ -23,38 +31,47 @@ const splitHeaders = function(headers) {
 exports.splitHeaders = splitHeaders;
 
 /*
- * Parse an HTTP header value with optional attributes, returning a tuple of
- * (value name, attributes dictionary).
+ * Parse an HTTP header value with optional parameters, returning a 2-element
+ * array of [value name, parameter map].
  *
- * For example 'foo;a=1;b=2' would return ['foo', {'a': 1, 'b': 2}].
+ * For example 'foo;q=1;a=bar' would return ['foo', Map{'q' => 1, 'a' => 'bar'}]
+ * 
+ * There are some gotchas here related to the 'q' parameter. The 'q' parameter
+ * is guranteed to always be present in the resulting parameter object, with a
+ * default value if 1. In addition, unlike other parameters, the value of the
+ * 'q' parameter will have been parsed via parseFloat(). The values for all
+ * other other parameters will be strings.
  */
 const parseHeaderValue = function(v) {
+    var params = new Map([['q', 1]]);
+
     const s = v.split(';');
-    if (s.length == 1) {
-        return [v, {}];
+    if (s.length > 0) {
+        s.forEach(function(av, idx) {
+            if (idx === 0) {
+                return;
+            }
+
+            const kvp = av.split('=', 2)
+            if (kvp[0] === 'q') {
+                kvp[1] = parseFloat(kvp[1]);
+            }
+
+            params.set(kvp[0], kvp[1]);
+        });
     }
 
-    const attrs = {};
-    s.forEach(function(av, idx) {
-        if (idx === 0) {
-            return;
-        }
-
-        const kvp = av.split('=', 2)
-        attrs[kvp[0]] = kvp[1];
-    });
-
-    return [s[0], attrs];
+    return [s[0], params];
 };
 exports.parseHeaderValue = parseHeaderValue;
 
 /*
- * Given an array of (value name, attribute dictionary) tuples, return a sorted
- * array of (value name, q-value) tuples, ordered by the value of the 'q' attribute.
+ * Given an array of 2-element [value name, parameter map] arrays, return a
+ * sorted array of [value name, -value) tuples, ordered by the value of the
+ * 'q' parameter.
  *
  * If multiple instances of the same value are found, the last instance will
- * override attributes of the earlier values. If no 'q' attribute is specified,
- * a default value of 1 is assumed.
+ * override parameters of the earlier values.
  *
  * For example given the below header values, the output of this function will
  * be [['b', 3], ['a', 2]].
@@ -62,32 +79,19 @@ exports.parseHeaderValue = parseHeaderValue;
  *      [['a', {'q': '5'}], ['a', {'q': '2'}], ['b', {'q': '3'}]]
  */
 const sortHeadersByQValue = function(headerValues) {
-    /* Parse q attributes, ensuring that all default to 1 */
-    var headerValuesWithQValues = headerValues.map(function(vt) {
-        var vn = vt[0];
-        var va = vt[1];
-
-        if ('q' in va) {
-            return [vn, parseFloat(va['q'])];
-        } else {
-            return [vn, 1];
-        }
-    });
-
     /* Filter out duplicates by name, preserving the last seen */
-    var seen = {};
-    const filteredValues = headerValuesWithQValues.reverse().filter(function(vt) {
-        const vn = vt[0];
-        if (vn in seen) {
+    var seen = new Set();
+    const filteredValues = headerValues.slice().reverse().filter(function(pt) {
+        let pn = pt[0];
+        if (seen.has(pn)) {
             return false;
         }
 
-        seen[vn] = true;
+        seen.add(pn);
         return true;
     });
 
-    /* Sort by values with highest 'q' attribute */
-    return filteredValues.sort(function(a, b) { return b[1] - a[1]; });
+    return filteredValues.sort(function(a, b) { return b[1].get('q') - a[1].get('q'); });
 };
 exports.sortHeadersByQValue = sortHeadersByQValue;
 
@@ -110,7 +114,7 @@ const performNegotiation = function(clientValues, serverValues, matcher, compara
         const cv = matchingCv
             .sort(function(a, b) { return comparator(a[0], b[0]); })[0];
 
-        const score = cv[1] * sv[1];
+        const score = cv[1].get('q') * sv[1].get('q');
         if (score <= 0) {
             return;
         }
@@ -203,7 +207,7 @@ const awsNegotiateEncoding = function(headers, serverValues) {
     if (!('accept-encoding' in headers)) {
         return Array
             .from(serverValues)
-            .sort(function(a, b) { return a[1] - b[1]; })
+            .sort(function(a, b) { return a[1].get('q') - b[1].get('q'); })
             .pop()[0];
     }
 
@@ -226,7 +230,7 @@ const awsNegotiateEncoding = function(headers, serverValues) {
      *      RFC.
      */
     if (!parsedValues.some(function(v) { return wildcardValueMatch(v[0], 'identity'); })) {
-        parsedValues.unshift(['identity', {'q': '1'}]);
+        parsedValues.unshift(valueTuple('identity', {'q': 1}));
     }
 
     return performNegotiation(
