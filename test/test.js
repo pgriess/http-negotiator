@@ -238,7 +238,7 @@ describe('matchersAndComparators', function() {
                 true
             );
         });
-        it('should ignore q attributes', function() {
+        it('should ignore q attribute from server', function() {
             assert.equal(
                 hcn.strictValueMatch(
                     hcn.valueTuple('a', {a: '1', b: '2', q: 3}),
@@ -246,9 +246,20 @@ describe('matchersAndComparators', function() {
                 ),
                 true
             );
+        });
+        it('should ignore q attribute from client', function() {
             assert.equal(
                 hcn.strictValueMatch(
                     hcn.valueTuple('a', {a: '1', b: '2'}),
+                    hcn.valueTuple('a', {a: '1', b: '2', q: 3})
+                ),
+                true
+            );
+        });
+        it('should ignore mismached q attributes', function() {
+            assert.equal(
+                hcn.strictValueMatch(
+                    hcn.valueTuple('a', {a: '1', b: '2', q: 4}),
                     hcn.valueTuple('a', {a: '1', b: '2', q: 3})
                 ),
                 true
@@ -301,7 +312,7 @@ describe('matchersAndComparators', function() {
                 false
             );
         });
-        it('should match on wildcards', function() {
+        it('should match on client wildcard', function() {
             assert.equal(
                 hcn.wildcardValueMatch(
                     hcn.valueTuple('a'),
@@ -309,22 +320,8 @@ describe('matchersAndComparators', function() {
                 ),
                 true
             );
-            assert.equal(
-                hcn.wildcardValueMatch(
-                    hcn.valueTuple('*'),
-                    hcn.valueTuple('b')
-                ),
-                true
-            );
-            assert.equal(
-                hcn.wildcardValueMatch(
-                    hcn.valueTuple('*'),
-                    hcn.valueTuple('*')
-                ),
-                true
-            );
         });
-        it('should consider attributes when matching', function() {
+        it('should match on exact parameters', function() {
             assert.equal(
                 hcn.wildcardValueMatch(
                     hcn.valueTuple('a', {a: '1', b: '2'}),
@@ -332,6 +329,8 @@ describe('matchersAndComparators', function() {
                 ),
                 true
             );
+        });
+        it('should not match on subset of client parameters', function() {
             assert.equal(
                 hcn.wildcardValueMatch(
                     hcn.valueTuple('a', {a: '1'}),
@@ -339,13 +338,17 @@ describe('matchersAndComparators', function() {
                 ),
                 false
             );
+        });
+        it('should match on superset of client parameters', function() {
             assert.equal(
                 hcn.wildcardValueMatch(
-                    hcn.valueTuple('*'),
+                    hcn.valueTuple('a', {a: '1', b: '2'}),
                     hcn.valueTuple('a', {a: '1'})
                 ),
-                false
+                true
             );
+        });
+        it('should match on superset of client parameters with wildcard', function() {
             assert.equal(
                 hcn.wildcardValueMatch(
                     hcn.valueTuple('a', {a: '1'}),
@@ -415,7 +418,7 @@ describe('matchersAndComparators', function() {
                 false
             );
         });
-        it('should match on types', function() {
+        it('should match on type wildcard', function() {
             assert.equal(
                 hcn.mediaRangeValueMatch(
                     hcn.valueTuple('a/aa'),
@@ -423,29 +426,8 @@ describe('matchersAndComparators', function() {
                 ),
                 true
             );
-            assert.equal(
-                hcn.mediaRangeValueMatch(
-                    hcn.valueTuple('a/aa'),
-                    hcn.valueTuple('*/*')
-                ),
-                true
-            );
-            assert.equal(
-                hcn.mediaRangeValueMatch(
-                    hcn.valueTuple('*/aa'),
-                    hcn.valueTuple('a/aa')
-                ),
-                true
-            );
-            assert.equal(
-                hcn.mediaRangeValueMatch(
-                    hcn.valueTuple('*/*'),
-                    hcn.valueTuple('a/aa')
-                ),
-                true
-            );
         });
-        it('should match on subtypes', function() {
+        it('should match on subtype wildcard', function() {
             assert.equal(
                 hcn.mediaRangeValueMatch(
                     hcn.valueTuple('a/aa'),
@@ -453,24 +435,12 @@ describe('matchersAndComparators', function() {
                 ),
                 true
             );
+        });
+        it('should match on type and subtype wildcards', function() {
             assert.equal(
                 hcn.mediaRangeValueMatch(
                     hcn.valueTuple('a/aa'),
                     hcn.valueTuple('*/*')
-                ),
-                true
-            );
-            assert.equal(
-                hcn.mediaRangeValueMatch(
-                    hcn.valueTuple('a/*'),
-                    hcn.valueTuple('a/aa')
-                ),
-                true
-            );
-            assert.equal(
-                hcn.mediaRangeValueMatch(
-                    hcn.valueTuple('*/*'),
-                    hcn.valueTuple('a/aa')
                 ),
                 true
             );

@@ -85,6 +85,18 @@ exports.sortHeadersByQValue = sortHeadersByQValue;
  *
  * Given sorted arrays of supported (value name, q-value) tuples, select a
  * value that is mutuaully acceptable. Returns null is nothing could be found.
+ * 
+ * XXX: Need full write-up on expectations for matchers, comparators.
+ * 
+ * Matchers
+ * 
+ *      - No server wildcards
+ *      - Comparing server offer vs. client requirements
+ * 
+ * Comparators
+ * 
+ *      - Only items which matched are compared
+ *      - Comparing 2 server offers in context of client requirements
  */
 const performNegotiation = function(clientValues, serverValues, matcher, comparator) {
     var scores = [];
@@ -121,21 +133,12 @@ const performNegotiation = function(clientValues, serverValues, matcher, compara
 exports.performNegotiation = performNegotiation;
 
 /*
- * Matcher and comparator for strict literals.
+ * Matcher and comparator for parameters.
  */
-const strictValueMatch = function(st, ct) {
-    let sn = st[0];
-    let sp = st[1];
-    let cn = ct[0];
-    let cp = ct[1]
-
-    if (sn !== cn) {
-        return false;
-    }
-
+const parameterMatch = function(sp, cp) {
     for (spt of sp) {
-        let spn = spt[0];
-        let spv = spt[1];
+        const spn = spt[0];
+        const spv = spt[1];
 
         /* The 'q' parameter is special; skip it */
         if (spn === 'q') {
@@ -156,7 +159,7 @@ const strictValueMatch = function(st, ct) {
     }
 
     for (cpt of cp) {
-        let cpn = cpt[0];
+        const cpn = cpt[0];
 
         if (cpn !== 'q' && !sp.has(cpn)) {
             return false;
@@ -164,13 +167,34 @@ const strictValueMatch = function(st, ct) {
     }
 
     return true;
+};
+exports.parameterMatch = parameterMatch;
 
-    return true;
+/*
+ * TODO: Implement me!
+ * 
+ * XXX: Requires the client params that we're matching against as otherwise we
+ *      don't know which is better *relative to that*.
+ */
+const parameterCompare = function(ap, bp) {
+    return 0;
+};
+exports.parameterCompare = parameterCompare;
+
+/*
+ * Matcher and comparator for strict literals.
+ */
+const strictValueMatch = function(st, ct) {
+    if (st[0] !== ct[0]) {
+        return false;
+    }
+
+    return parameterMatch(st[1], ct[1]);
 };
 exports.strictValueMatch = strictValueMatch;
 
 const strictValueCompare = function(at, bt) {
-    return 0;
+    return parameterCompare(at[1], bt[1]);
 };
 exports.strictValueCompare = strictValueCompare;
 
@@ -181,11 +205,8 @@ exports.strictValueCompare = strictValueCompare;
  * matches should take lower precedence than exact matches.
  */
 const wildcardValueMatch = function(st, ct) {
-    let sn = st[0];
-    let cn = ct[0];
-
-    if (sn === '*' || cn === '*') {
-        return strictValueMatch(['*', st[1]], ['*', ct[1]]);
+    if (ct[0] === '*') {
+        return parameterMatch(st[1], ct[1]);
     }
 
     return strictValueMatch(st, ct);
@@ -193,12 +214,12 @@ const wildcardValueMatch = function(st, ct) {
 exports.wildcardValueMatch = wildcardValueMatch;
 
 const wildcardValueCompare = function(at, bt) {
-    let an = at[0];
-    let bn = bt[0];
+    const an = at[0];
+    const bn = bt[0];
 
     if (an === '*' || bn === '*') {
         if (an === '*' && bn === '*') {
-            return 0;
+            return parameterCompare(at[1], bt[1]);
         } else if (an === '*') {
             return 1;
         } else {
@@ -217,25 +238,29 @@ exports.wildcardValueCompare = wildcardValueCompare;
  * 'text/javascript' should not. Wildcard matches should take lower precedence
  * than exact matches.
  */
-const mediaRangeValueMatch = function(at, bt) {
-    let an = at[0];
-    let ap = at[1];
-    let bn = bt[0];
-    let bp = bt[1]
+const mediaRangeValueMatch = function(st, ct) {
+    const EMPTY_PARAMS = new Map();
 
-    const aTypes = an.split('/');
-    const bTypes = bn.split('/');
+    const sn = st[0];
+    const sp = st[1];
+    const cn = ct[0];
+    const cp = ct[1]
 
-    return wildcardValueMatch([aTypes[0], ap], [bTypes[0], bp]) &&
-        wildcardValueMatch([aTypes[1], ap], [bTypes[1], bp]);
+    const sTypes = sn.split('/');
+    const cTypes = cn.split('/');
+
+    return wildcardValueMatch(
+            [sTypes[0], EMPTY_PARAMS],
+            [cTypes[0], EMPTY_PARAMS]) &&
+        wildcardValueMatch([sTypes[1], sp], [cTypes[1], cp]);
 };
 exports.mediaRangeValueMatch = mediaRangeValueMatch;
 
 const mediaRangeValueCompare = function(at, bt) {
-    let an = at[0];
-    let ap = at[1];
-    let bn = bt[0];
-    let bp = bt[1]
+    const an = at[0];
+    const ap = at[1];
+    const bn = bt[0];
+    const bp = bt[1]
 
     const aTypes = an.split('/');
     const bTypes = bn.split('/');
@@ -300,7 +325,7 @@ const awsNegotiateEncoding = function(headers, serverValues) {
      *      the absolute last option which feels like it's really the intent of the
      *      RFC.
      */
-    if (!parsedValues.some((v) => { return wildcardValueMatch(v, IDENTITY); })) {
+    if (!parsedValues.some((v) => { return wildcardValueMatch(IDENTITY, v); })) {
         parsedValues.unshift(IDENTITY);
     }
 
