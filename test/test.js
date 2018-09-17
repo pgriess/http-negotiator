@@ -1,40 +1,28 @@
 var hcn = require('../http-content-negotiation.js');
 var assert = require('assert');
 
-describe('splitHeaders()', function() {
+describe('splitHeaderValue()', function() {
     it('should split a simple single header', function() {
         assert.deepStrictEqual(
-            hcn.splitHeaders([
-                {'key': 'Accept-Encoding', 'value': 'gzip, br, identity'}]),
+            hcn.splitHeaderValue('gzip, br, identity'),
             ['gzip', 'br', 'identity']
-        );
-    });
-    it('should combine and split multiple headers', function() {
-        assert.deepStrictEqual(
-            hcn.splitHeaders([
-                {'key': 'Accept-Encoding', 'value': 'deflate, gzip, br'},
-                {'key': 'Accept-Encoding', 'value': 'identity, deflate'}]),
-            ['deflate', 'gzip', 'br', 'identity', 'deflate']
         );
     });
     it('should strip optional whitespace', function() {
         assert.deepStrictEqual(
-            hcn.splitHeaders([
-                {'key': 'Accept-Encoding', 'value': 'gzip , br,identity '}]),
+            hcn.splitHeaderValue('gzip , br,identity '),
             ['gzip', 'br', 'identity']
         );
     });
     it('should not be confused by / characters', function() {
         assert.deepStrictEqual(
-            hcn.splitHeaders([
-                {'key': 'Accept', 'value': 'image/png, image/webp'}]),
+            hcn.splitHeaderValue('image/png, image/webp'),
             ['image/png', 'image/webp']
         );
     });
     it('should not be confused by * characters', function() {
         assert.deepStrictEqual(
-            hcn.splitHeaders([
-                {'key': 'Accept', 'value': 'image/*, */*'}]),
+            hcn.splitHeaderValue('image/*, */*'),
             ['image/*', '*/*']
         );
     });
@@ -291,6 +279,17 @@ describe('matchersAndComparators', function() {
             assert.equal(hcn.mediaRangeValueCompare('*/*', '*/aa'), 1);
             assert.equal(hcn.mediaRangeValueCompare('*/*', '*/*'), 0);
         });
+    });
+});
+
+describe('awsSplitHeaderValue', function() {
+    it('should combine and split multiple headers', function() {
+        assert.deepStrictEqual(
+            hcn.awsSplitHeaderValue([
+                {'key': 'Accept-Encoding', 'value': 'deflate, gzip, br'},
+                {'key': 'Accept-Encoding', 'value': 'identity, deflate'}]),
+            ['deflate', 'gzip', 'br', 'identity', 'deflate']
+        );
     });
 });
 

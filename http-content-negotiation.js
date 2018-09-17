@@ -7,28 +7,13 @@ const valueTuple = function(name, paramObj) {
 exports.valueTuple = valueTuple;
 
 /*
- * Given an array of AWS Lambda header objects for headers that support
- * ','-delimited list syntax, return a single array containing the values from
- * all of these lists.
- *
- * Assumptions
- *
- *  - HTTP headers arrive as an array of objects, each with a 'key' and 'value'
- *    property. We ignore the 'key' property as we assume the caller has supplied
- *    an array where these do not differ except by case.
- *
- *  - The header objects specified have values which conform to section 7 of RFC
- *    7230. For eample, Accept, Accept-Encoding support this. User-Agent does not.
+ * Given a header value that supports ','-delimited list syntax, return an
+ * array representing the list.
  */
-const splitHeaders = function(headers) {
-    return headers.map(function(ho) { return ho['value']; })
-        .reduce(
-            function(acc, val) {
-                return acc.concat(val.replace(/ +/g, '').split(','));
-            },
-            []);
+const splitHeaderValue = function(header) {
+    return header.replace(/ +/g, '').split(',');
 };
-exports.splitHeaders = splitHeaders;
+exports.splitHeaderValue = splitHeaderValue;
 
 /*
  * Parse an HTTP header value with optional parameters, returning a 2-element
@@ -196,8 +181,24 @@ const mediaRangeValueCompare = function(a, b) {
 };
 exports.mediaRangeValueCompare = mediaRangeValueCompare;
 
+
 /*
- * High-level wrapper to negotiate encoding.
+ * Split headers from AWS input.
+ * 
+ * This differs from splitHeaderValue in that it accepts AWS header object as
+ * input and handles merging multiple instances of a single header.
+ */
+const awsSplitHeaderValue = function(headers) {
+    return headers.map(function(ho) { return ho['value']; })
+        .reduce((a, v) => { return a.concat(splitHeaderValue(v)); }, []);
+};
+exports.awsSplitHeaderValue = awsSplitHeaderValue;
+
+/*
+ * Perform content negotiation from AWS input.
+ * 
+ * This is a high-level wrapper around the rest of the functions in this file.
+ * Applications should probably just use this directly.
  */
 const awsNegotiateEncoding = function(headers, serverValues) {
     /* 
@@ -212,7 +213,7 @@ const awsNegotiateEncoding = function(headers, serverValues) {
     }
 
     /* Parse values and attributes */
-    var parsedValues = splitHeaders(headers['accept-encoding'])
+    var parsedValues = awsSplitHeaderValue(headers['accept-encoding'])
         .map(parseHeaderValue);
 
     /* 
