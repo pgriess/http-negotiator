@@ -1,8 +1,53 @@
 /*
- * Helper to construct value tuples
+ * The ValueTuple type.
+ * 
+ * This is the central data type in our library. The HTTP headers that we work
+ * with are comprised lists of values separated by the ',' character. Each
+ * value may have optional parameters, each separated by a ';' character. For
+ * example the header 'Accept-Encoding: gzip, br;q=0.9, identity;q=0.1' would
+ * be represented an array of 3 ValueTuple objects
+ * 
+ *  [
+ *      ValueTuple{ value: 'gzip', properties: Map{} },
+ *      ValueTuple{ value: 'br', properties: Map{ 'q' => 0.9 } },
+ *      ValueTuple{ value: 'gzip', properties: Map{ 'q' => 0.1 } }
+ *  ],
+ * 
+ * In addition, the 'q' property has special semantics -- we provide a
+ * convenice attribute for accessing this directly, returning the default value
+ * of 1 if it is un-specified.
+ */
+let ValueTuple = class {
+    constructor(value, properties) {
+        this.value = value;
+        this.properties = properties;
+    }
+
+    get q() {
+        const qv = this.properties.get('q');
+        return (qv === undefined) ? 1 : qv;
+    }
+};
+exports.ValueTuple = ValueTuple;
+
+/*
+ * Helper to construct value tuples.
+ * 
+ * A value tuple is a 2-element array of a value and a Map of parameters. For
+ * example, the value portion of the following header
+ * 
+ *  'Accept-Encoding: br, gzip;q=0.9, identity;q=0.1'
+ * 
+ * .. would be represented by three value tuples: ['br', Map{}],
+ * ['gzip', Map{'q' => 0.9}], and ['identity', Map{'q' => 0.1}]
  */
 const valueTuple = function(name, paramObj) {
-    return [name, new Map(Object.entries(paramObj || {}))];
+    let vt = [name, new Map(Object.entries(paramObj || {}))];
+    if (vt[1].has('q')) {
+        vt[1].set('q', parseFloat(vt[1].get('q')));
+    }
+
+    return new ValueTuple(vt[0], vt[1]);
 };
 exports.valueTuple = valueTuple;
 
@@ -46,7 +91,7 @@ const parseHeaderValue = function(v) {
         });
     }
 
-    return [s[0], params];
+    return new ValueTuple(s[0], params);
 };
 exports.parseHeaderValue = parseHeaderValue;
 
@@ -66,17 +111,16 @@ exports.parseHeaderValue = parseHeaderValue;
 const sortHeadersByQValue = function(headerValues) {
     /* Filter out duplicates by name, preserving the last seen */
     var seen = new Set();
-    const filteredValues = headerValues.slice().reverse().filter(function(pt) {
-        let pn = pt[0];
-        if (seen.has(pn)) {
+    const filteredValues = headerValues.slice().reverse().filter(function(vt) {
+        if (seen.has(vt.value)) {
             return false;
         }
 
-        seen.add(pn);
+        seen.add(vt.value);
         return true;
     });
 
-    return filteredValues.sort(function(a, b) { return b[1].get('q') - a[1].get('q'); });
+    return filteredValues.sort(function(a, b) { return b.q - a.q; });
 };
 exports.sortHeadersByQValue = sortHeadersByQValue;
 
@@ -111,7 +155,7 @@ const performNegotiation = function(clientValues, serverValues, matcher, compara
         const cv = matchingCv
             .sort(function(a, b) { return comparator(a, b); })[0];
 
-        const score = cv[1].get('q') * sv[1].get('q');
+        const score = cv.q * sv.q;
         if (score <= 0) {
             return;
         }
@@ -121,7 +165,7 @@ const performNegotiation = function(clientValues, serverValues, matcher, compara
          * 
          * XXX: Need return full tuple not just name
          */
-        scores.push([sv[0], score]);
+        scores.push([sv.value, score]);
     });
 
     if (scores.length === 0) {
@@ -185,16 +229,16 @@ exports.parameterCompare = parameterCompare;
  * Matcher and comparator for strict literals.
  */
 const strictValueMatch = function(st, ct) {
-    if (st[0] !== ct[0]) {
+    if (st.value !== ct.value) {
         return false;
     }
 
-    return parameterMatch(st[1], ct[1]);
+    return parameterMatch(st.properties, ct.properties);
 };
 exports.strictValueMatch = strictValueMatch;
 
 const strictValueCompare = function(at, bt) {
-    return parameterCompare(at[1], bt[1]);
+    return parameterCompare(at.properties, bt.properties);
 };
 exports.strictValueCompare = strictValueCompare;
 
@@ -205,8 +249,8 @@ exports.strictValueCompare = strictValueCompare;
  * matches should take lower precedence than exact matches.
  */
 const wildcardValueMatch = function(st, ct) {
-    if (ct[0] === '*') {
-        return parameterMatch(st[1], ct[1]);
+    if (ct.value === '*') {
+        return parameterMatch(st.properties, ct.properties);
     }
 
     return strictValueMatch(st, ct);
@@ -214,13 +258,10 @@ const wildcardValueMatch = function(st, ct) {
 exports.wildcardValueMatch = wildcardValueMatch;
 
 const wildcardValueCompare = function(at, bt) {
-    const an = at[0];
-    const bn = bt[0];
-
-    if (an === '*' || bn === '*') {
-        if (an === '*' && bn === '*') {
-            return parameterCompare(at[1], bt[1]);
-        } else if (an === '*') {
+    if (at.value === '*' || bt.value === '*') {
+        if (at.value === '*' && bt.value === '*') {
+            return parameterCompare(at.properties, bt.properties);
+        } else if (at.value === '*') {
             return 1;
         } else {
             return -1;
@@ -241,37 +282,33 @@ exports.wildcardValueCompare = wildcardValueCompare;
 const mediaRangeValueMatch = function(st, ct) {
     const EMPTY_PARAMS = new Map();
 
-    const sn = st[0];
-    const sp = st[1];
-    const cn = ct[0];
-    const cp = ct[1]
-
-    const sTypes = sn.split('/');
-    const cTypes = cn.split('/');
+    const sTypes = st.value.split('/');
+    const cTypes = ct.value.split('/');
 
     return wildcardValueMatch(
-            [sTypes[0], EMPTY_PARAMS],
-            [cTypes[0], EMPTY_PARAMS]) &&
-        wildcardValueMatch([sTypes[1], sp], [cTypes[1], cp]);
+            new ValueTuple(sTypes[0], EMPTY_PARAMS),
+            new ValueTuple(cTypes[0], EMPTY_PARAMS)) &&
+        wildcardValueMatch(
+            new ValueTuple(sTypes[1], st.properties),
+            new ValueTuple(cTypes[1], ct.properties));
 };
 exports.mediaRangeValueMatch = mediaRangeValueMatch;
 
 const mediaRangeValueCompare = function(at, bt) {
-    const an = at[0];
-    const ap = at[1];
-    const bn = bt[0];
-    const bp = bt[1]
-
-    const aTypes = an.split('/');
-    const bTypes = bn.split('/');
+    const aTypes = at.value.split('/');
+    const bTypes = bt.value.split('/');
 
     /* XXX: This may be wrong. Should we compare parameters entirely ater the types? */
-    const c = wildcardValueCompare([aTypes[0], ap], [bTypes[0], bp]);
+    const c = wildcardValueCompare(
+        new ValueTuple(aTypes[0], at.properties),
+        new ValueTuple(bTypes[0], bt.properties));
     if (c !== 0) {
         return c;
     }
 
-    return wildcardValueCompare([aTypes[1], ap], [bTypes[1], bp]);
+    return wildcardValueCompare(
+        new ValueTuple(aTypes[1], at.properties),
+        new ValueTuple(bTypes[1], bt.properties));
 };
 exports.mediaRangeValueCompare = mediaRangeValueCompare;
 
@@ -303,8 +340,8 @@ const awsNegotiateEncoding = function(headers, serverValues) {
     if (!('accept-encoding' in headers)) {
         return Array
             .from(serverValues)
-            .sort(function(a, b) { return a[1].get('q') - b[1].get('q'); })
-            .pop()[0];
+            .sort(function(a, b) { return a.q - b.q; })
+            .pop().value;
     }
 
     /* Parse values and attributes */
