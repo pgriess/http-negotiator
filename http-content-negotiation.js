@@ -49,18 +49,16 @@ const splitHeaderValue = function(header) {
 exports.splitHeaderValue = splitHeaderValue;
 
 /*
- * Parse an HTTP header value with optional parameters, returning a 2-element
- * array of [value name, parameter map].
+ * Parse an HTTP header value into a ValueTuple.
  *
- * For example 'foo;q=1;a=bar' would return ['foo', Map{'q' => 1, 'a' => 'bar'}]
+ * For example 'foo;q=1;a=2' would return
  * 
- * There are some gotchas here related to the 'q' parameter. The 'q' parameter
- * is guranteed to always be present in the resulting parameter object, with a
- * default value if 1. In addition, unlike other parameters, the value of the
- * 'q' parameter will have been parsed via parseFloat(). The values for all
- * other other parameters will be strings.
+ *  ValueTuple{ value: 'foo', properties: Map{ 'q' => 1, 'a' => '2' } }
+ * 
+ * The 'q' parameter here is special. Unlike other parameters which are passed
+ * through as un-interpted strings, 'q' will be run through parseFloat().
  */
-const parseHeaderValue = function(v) {
+const parseValueTuple = function(v) {
     var params = new Map([['q', 1]]);
 
     const s = v.split(';');
@@ -81,7 +79,7 @@ const parseHeaderValue = function(v) {
 
     return new ValueTuple(s[0], params);
 };
-exports.parseHeaderValue = parseHeaderValue;
+exports.parseValueTuple = parseValueTuple;
 
 /*
  * Given an array of 2-element [value name, parameter map] arrays, return a
@@ -334,7 +332,7 @@ const awsNegotiateEncoding = function(headers, serverValues) {
 
     /* Parse values and attributes */
     var parsedValues = awsSplitHeaderValue(headers['accept-encoding'])
-        .map(parseHeaderValue);
+        .map(parseValueTuple);
 
     /* 
      * If no parsed values match 'identity' (i.e. it has not been overridden)

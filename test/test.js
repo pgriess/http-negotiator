@@ -27,25 +27,25 @@ describe('splitHeaderValue()', function() {
     });
 });
 
-describe('parseHeaderValue()', function() {
+describe('parseValueTuple()', function() {
     it('should handle items with no attributes', function() {
         assert.deepStrictEqual(
-            hcn.parseHeaderValue('foo'),
+            hcn.parseValueTuple('foo'),
             VT('foo', {q: 1}));
     });
     it('should parse multiple attributes with values', function() {
         assert.deepStrictEqual(
-            hcn.parseHeaderValue('foo;a=1;b=2'),
+            hcn.parseValueTuple('foo;a=1;b=2'),
             VT('foo', {q: 1, a: '1', b: '2'}));
     });
     it('should handle attributes after wildcards', function() {
         assert.deepStrictEqual(
-            hcn.parseHeaderValue('image/*;a=1;b=2'),
+            hcn.parseValueTuple('image/*;a=1;b=2'),
             VT('image/*', {q: 1, a: '1', b: '2'}));
     });
     it('should not override an explicitly specified q parameter', function() {
         assert.deepStrictEqual(
-            hcn.parseHeaderValue('image/*;a=1;b=2;q=0.25'),
+            hcn.parseValueTuple('image/*;a=1;b=2;q=0.25'),
             VT('image/*', {a: '1', b: '2', q: 0.25}));
     });
 });
