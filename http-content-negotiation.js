@@ -31,6 +31,155 @@ let ValueTuple = class {
 exports.ValueTuple = ValueTuple;
 
 /*
+ * Matchers and comparators
+ * 
+ * Matchers are used to determine whether a single server ValueTuple will
+ * satisfy the requirements of a single client ValueTuple. These are used in
+ * performNegotiation() to determine the compatability matrix of the various
+ * content options being requested and offered. Matchers are invoked
+ * as (serverTuple, clientTuple) and return a truthy value.
+ * 
+ * Comparators are used to select the ValueTuple that *best* satisfies the
+ * requirements of a single client ValueTuple. All server ValueTuples thar are
+ * passed to comparators are guaranteed to have passed the relevant matcher.
+ * Comparators are invoked as (valueTupleA, valueTupleA) and return less than 0
+ * if valueTupleA is less than valueTuple B, 0 if they are equal, and greater
+ * than zero if valueTupleB is less than valueTupleA.
+ * 
+ * Matchers and comparators are always paired together. For example,
+ * mediaRangeValueMatch() and mediaRangeValueCompare() are always used
+ * together. These pairs are used to implement semantics reuqired for different
+ * headers, e.g. processing Accept uses mediaRangeValue{Match,Compare} while,
+ * processing Accept-Encoding uses wildcard{Match,Compare}.
+ */
+
+/*
+ * Matcher and comparator for parameters.
+ * 
+ * These aren't directly, but is instead used by other matchers/comparators to
+ * handle parameters.
+ */
+const parameterMatch = function(sp, cp) {
+    for (spt of sp) {
+        const spn = spt[0];
+        const spv = spt[1];
+
+        /* The 'q' parameter is special; skip it */
+        if (spn === 'q') {
+            continue;
+        }
+
+        /* 
+         * If the client hasn't specified a value for this parameter, consider
+         * that implicit acceptance; skip it
+         */
+        if (!cp.has(spn)) {
+            continue;
+        }
+
+        if (spv !== cp.get(spn)) {
+            return false;
+        }
+    }
+
+    for (cpt of cp) {
+        const cpn = cpt[0];
+
+        if (cpn !== 'q' && !sp.has(cpn)) {
+            return false;
+        }
+    }
+
+    return true;
+};
+exports.parameterMatch = parameterMatch;
+
+const parameterCompare = function(ap, bp) {
+    /*
+    * TODO: Implement me!
+    * 
+    * XXX: Requires the client params that we're matching against as otherwise we
+    *      don't know which is better *relative to that*.
+    * 
+    * XXX: Look at qvalues here and get rid of sortHeadersByQValue()
+    */
+    return 0;
+};
+exports.parameterCompare = parameterCompare;
+
+/*
+ * Matcher and comparator for wildcards.
+ * 
+ * For example, 'a' and '*' should match, but 'a' and 'b' should not. Wildcard
+ * matches should take lower precedence than exact matches. This is used when
+ * performing negotiation on the Accept-Encoding header.
+ */
+const wildcardValueMatch = function(st, ct) {
+    if (st.value !== ct.value && ct.value !== '*') {
+        return false;
+    }
+
+    return parameterMatch(st.properties, ct.properties);
+};
+exports.wildcardValueMatch = wildcardValueMatch;
+
+const wildcardValueCompare = function(at, bt) {
+    if (at.value === '*' || bt.value === '*') {
+        if (at.value === '*' && bt.value === '*') {
+            return parameterCompare(at.properties, bt.properties);
+        } else if (at.value === '*') {
+            return 1;
+        } else {
+            return -1;
+        }
+    }
+
+    return parameterCompare(at.properties, bt.properties);
+};
+exports.wildcardValueCompare = wildcardValueCompare;
+
+/*
+ * Matcher and comparator for media ranges.
+ * 
+ * For example, 'text/plain' and 'text/*' should match, but 'text/plain' and
+ * 'text/javascript' should not. Wildcard matches should take lower precedence
+ * than exact matches. This is used when performing negotiation on the Accept
+ * header.
+ */
+const mediaRangeValueMatch = function(st, ct) {
+    const EMPTY_PARAMS = new Map();
+
+    const sTypes = st.value.split('/');
+    const cTypes = ct.value.split('/');
+
+    return wildcardValueMatch(
+            new ValueTuple(sTypes[0], EMPTY_PARAMS),
+            new ValueTuple(cTypes[0], EMPTY_PARAMS)) &&
+        wildcardValueMatch(
+            new ValueTuple(sTypes[1], st.properties),
+            new ValueTuple(cTypes[1], ct.properties));
+};
+exports.mediaRangeValueMatch = mediaRangeValueMatch;
+
+const mediaRangeValueCompare = function(at, bt) {
+    const aTypes = at.value.split('/');
+    const bTypes = bt.value.split('/');
+
+    /* XXX: This may be wrong. Should we compare parameters entirely ater the types? */
+    const c = wildcardValueCompare(
+        new ValueTuple(aTypes[0], at.properties),
+        new ValueTuple(bTypes[0], bt.properties));
+    if (c !== 0) {
+        return c;
+    }
+
+    return wildcardValueCompare(
+        new ValueTuple(aTypes[1], at.properties),
+        new ValueTuple(bTypes[1], bt.properties));
+};
+exports.mediaRangeValueCompare = mediaRangeValueCompare;
+
+/*
  * Given a header value that supports ','-delimited list syntax, return an
  * array representing the list.
  * 
@@ -115,18 +264,6 @@ exports.sortHeadersByQValue = sortHeadersByQValue;
  *
  * Given sorted arrays of supported (value name, q-value) tuples, select a
  * value that is mutuaully acceptable. Returns null is nothing could be found.
- * 
- * XXX: Need full write-up on expectations for matchers, comparators.
- * 
- * Matchers
- * 
- *      - No server wildcards
- *      - Comparing server offer vs. client requirements
- * 
- * Comparators
- * 
- *      - Only items which matched are compared
- *      - Comparing 2 server offers in context of client requirements
  */
 const performNegotiation = function(clientValues, serverValues, matcher, comparator) {
     var scores = [];
@@ -159,144 +296,6 @@ const performNegotiation = function(clientValues, serverValues, matcher, compara
     return scores.sort(function(a, b) { return b[1] - a[1]; })[0][0];
 };
 exports.performNegotiation = performNegotiation;
-
-/*
- * Matcher and comparator for parameters.
- */
-const parameterMatch = function(sp, cp) {
-    for (spt of sp) {
-        const spn = spt[0];
-        const spv = spt[1];
-
-        /* The 'q' parameter is special; skip it */
-        if (spn === 'q') {
-            continue;
-        }
-
-        /* 
-         * If the client hasn't specified a value for this parameter, consider
-         * that implicit acceptance; skip it
-         */
-        if (!cp.has(spn)) {
-            continue;
-        }
-
-        if (spv !== cp.get(spn)) {
-            return false;
-        }
-    }
-
-    for (cpt of cp) {
-        const cpn = cpt[0];
-
-        if (cpn !== 'q' && !sp.has(cpn)) {
-            return false;
-        }
-    }
-
-    return true;
-};
-exports.parameterMatch = parameterMatch;
-
-/*
- * TODO: Implement me!
- * 
- * XXX: Requires the client params that we're matching against as otherwise we
- *      don't know which is better *relative to that*.
- * 
- * XXX: Look at qvalues here and get rid of sortHeadersByQValue()
- */
-const parameterCompare = function(ap, bp) {
-    return 0;
-};
-exports.parameterCompare = parameterCompare;
-
-/*
- * Matcher and comparator for strict literals.
- */
-const strictValueMatch = function(st, ct) {
-    if (st.value !== ct.value) {
-        return false;
-    }
-
-    return parameterMatch(st.properties, ct.properties);
-};
-exports.strictValueMatch = strictValueMatch;
-
-const strictValueCompare = function(at, bt) {
-    return parameterCompare(at.properties, bt.properties);
-};
-exports.strictValueCompare = strictValueCompare;
-
-/*
- * Matcher and comparator for wildcards.
- * 
- * For example, 'a' and '*' should match, but 'a' and 'b' should not. Wildcard
- * matches should take lower precedence than exact matches.
- */
-const wildcardValueMatch = function(st, ct) {
-    if (ct.value === '*') {
-        return parameterMatch(st.properties, ct.properties);
-    }
-
-    return strictValueMatch(st, ct);
-};
-exports.wildcardValueMatch = wildcardValueMatch;
-
-const wildcardValueCompare = function(at, bt) {
-    if (at.value === '*' || bt.value === '*') {
-        if (at.value === '*' && bt.value === '*') {
-            return parameterCompare(at.properties, bt.properties);
-        } else if (at.value === '*') {
-            return 1;
-        } else {
-            return -1;
-        }
-    }
-
-    return strictValueCompare(at, bt);
-};
-exports.wildcardValueCompare = wildcardValueCompare;
-
-/*
- * Matcher and comparator for media ranges.
- * 
- * For example, 'text/plain' and 'text/*' should match, but 'text/plain' and
- * 'text/javascript' should not. Wildcard matches should take lower precedence
- * than exact matches.
- */
-const mediaRangeValueMatch = function(st, ct) {
-    const EMPTY_PARAMS = new Map();
-
-    const sTypes = st.value.split('/');
-    const cTypes = ct.value.split('/');
-
-    return wildcardValueMatch(
-            new ValueTuple(sTypes[0], EMPTY_PARAMS),
-            new ValueTuple(cTypes[0], EMPTY_PARAMS)) &&
-        wildcardValueMatch(
-            new ValueTuple(sTypes[1], st.properties),
-            new ValueTuple(cTypes[1], ct.properties));
-};
-exports.mediaRangeValueMatch = mediaRangeValueMatch;
-
-const mediaRangeValueCompare = function(at, bt) {
-    const aTypes = at.value.split('/');
-    const bTypes = bt.value.split('/');
-
-    /* XXX: This may be wrong. Should we compare parameters entirely ater the types? */
-    const c = wildcardValueCompare(
-        new ValueTuple(aTypes[0], at.properties),
-        new ValueTuple(bTypes[0], bt.properties));
-    if (c !== 0) {
-        return c;
-    }
-
-    return wildcardValueCompare(
-        new ValueTuple(aTypes[1], at.properties),
-        new ValueTuple(bTypes[1], bt.properties));
-};
-exports.mediaRangeValueCompare = mediaRangeValueCompare;
 
 /*
  * Split headers from AWS input.

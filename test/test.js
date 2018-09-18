@@ -69,8 +69,8 @@ describe('performNegotiation()', function() {
             hcn.performNegotiation(
                 [VT('a', {q: 1}), VT('b', {q: 1}), VT('c', {q: 1})],
                 [VT('c', {q: 1}), VT('z', {q: 1})],
-                hcn.strictValueMatch,
-                hcn.strictValueCompare),
+                hcn.wildcardValueMatch,
+                hcn.wildcardValueCompare),
             VT('c', {q: 1}));
     });
     it('should fail if there are no common values', function() {
@@ -78,8 +78,8 @@ describe('performNegotiation()', function() {
             hcn.performNegotiation(
                 [VT('a', {q: 1}), VT('b', {q: 1}), VT('c', {q: 1})],
                 [VT('z', {q: 1})],
-                hcn.strictValueMatch,
-                hcn.strictValueCompare),
+                hcn.wildcardValueMatch,
+                hcn.wildcardValueCompare),
             null);
     });
     it('should take client weights into account', function() {
@@ -87,8 +87,8 @@ describe('performNegotiation()', function() {
             hcn.performNegotiation(
                 [VT('a', {q: 1}), VT('b', {q: 1}), VT('c', {q: 0.8})],
                 [VT('b', {q: 0.9}), VT('c', {q: 1})],
-                hcn.strictValueMatch,
-                hcn.strictValueCompare),
+                hcn.wildcardValueMatch,
+                hcn.wildcardValueCompare),
             VT('b', {q: 0.9}));
     });
     it('should take server weights into account', function() {
@@ -96,8 +96,8 @@ describe('performNegotiation()', function() {
             hcn.performNegotiation(
                 [VT('a', {q: 1}), VT('b', {q: 1}), VT('c', {q: 1})],
                 [VT('b', {q: 0.9}), VT('c', {q: 1})],
-                hcn.strictValueMatch,
-                hcn.strictValueCompare),
+                hcn.wildcardValueMatch,
+                hcn.wildcardValueCompare),
             VT('c', {q: 1}));
     });
     it('should consider 0-weights as a non-match', function() {
@@ -105,8 +105,8 @@ describe('performNegotiation()', function() {
             hcn.performNegotiation(
                 [VT('a', {q: 1})],
                 [VT('a', {q: 0})],
-                hcn.strictValueMatch,
-                hcn.strictValueCompare),
+                hcn.wildcardValueMatch,
+                hcn.wildcardValueCompare),
             null);
     });
     it('should support wildcard matching', function() {
@@ -139,62 +139,6 @@ describe('performNegotiation()', function() {
 });
 
 describe('matchersAndComparators', function() {
-    describe('strict', function() {
-        it('should match on identical values', function() {
-            assert.equal(hcn.strictValueMatch(VT('a'), VT('a')), true);
-        });
-        it('should not match on different values', function() {
-            assert.equal(hcn.strictValueMatch(VT('a'), VT('b')), false);
-        });
-        it('should not match on identical prefixes', function() {
-            assert.equal(hcn.strictValueMatch(VT('ace'), VT('aceq')), false);
-        });
-        it('should match on identical attributes', function() {
-            assert.equal(
-                hcn.strictValueMatch(
-                    VT('a', {a: '1', b: '2'}),
-                    VT('a', {a: '1', b: '2'})),
-                true);
-        });
-        it('should ignore q attribute from server', function() {
-            assert.equal(
-                hcn.strictValueMatch(
-                    VT('a', {a: '1', b: '2', q: 3}),
-                    VT('a', {a: '1', b: '2'})),
-                true);
-        });
-        it('should ignore q attribute from client', function() {
-            assert.equal(
-                hcn.strictValueMatch(
-                    VT('a', {a: '1', b: '2'}),
-                    VT('a', {a: '1', b: '2', q: 3})),
-                true);
-        });
-        it('should ignore mismached q attributes', function() {
-            assert.equal(
-                hcn.strictValueMatch(
-                    VT('a', {a: '1', b: '2', q: 4}),
-                    VT('a', {a: '1', b: '2', q: 3})),
-                true);
-        });
-        it('should ignore missing client parameters', function() {
-            assert.equal(
-                hcn.strictValueMatch(
-                    VT('a', {a: '1', b: '2', c: '3'}),
-                    VT('a', {a: '1', b: '2'})),
-                true);
-        });
-        it('should fail on missing server parameters', function() {
-            assert.equal(
-                hcn.strictValueMatch(
-                    VT('a', {a: '1', b: '2'}),
-                    VT('a', {a: '1', b: '2', c: '3'})),
-                false);
-        });
-        it('should compare all values to 0', function() {
-            assert.equal(hcn.strictValueCompare(VT('a'), VT('a')), 0);
-        });
-    });
     describe('wildcard', function() {
         it('should match on identical values', function() {
             assert.equal(hcn.wildcardValueMatch(VT('a'), VT('a')), true);
@@ -216,6 +160,27 @@ describe('matchersAndComparators', function() {
         it('should match on superset of client parameters', function() {
             assert.equal(
                 hcn.wildcardValueMatch(VT('a', {a: '1', b: '2'}), VT('a', {a: '1'})), true);
+        });
+        it('should ignore q attribute from server', function() {
+            assert.equal(
+                hcn.wildcardValueMatch(
+                    VT('a', {a: '1', b: '2', q: 3}),
+                    VT('a', {a: '1', b: '2'})),
+                true);
+        });
+        it('should ignore q attribute from client', function() {
+            assert.equal(
+                hcn.wildcardValueMatch(
+                    VT('a', {a: '1', b: '2'}),
+                    VT('a', {a: '1', b: '2', q: 3})),
+                true);
+        });
+        it('should ignore mismached q attributes', function() {
+            assert.equal(
+                hcn.wildcardValueMatch(
+                    VT('a', {a: '1', b: '2', q: 4}),
+                    VT('a', {a: '1', b: '2', q: 3})),
+                true);
         });
         it('should match on superset of client parameters with wildcard', function() {
             assert.equal(hcn.wildcardValueMatch(VT('a', {a: '1'}), VT('*')), true);
