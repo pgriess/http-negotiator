@@ -31,27 +31,6 @@ let ValueTuple = class {
 exports.ValueTuple = ValueTuple;
 
 /*
- * Helper to construct value tuples.
- * 
- * A value tuple is a 2-element array of a value and a Map of parameters. For
- * example, the value portion of the following header
- * 
- *  'Accept-Encoding: br, gzip;q=0.9, identity;q=0.1'
- * 
- * .. would be represented by three value tuples: ['br', Map{}],
- * ['gzip', Map{'q' => 0.9}], and ['identity', Map{'q' => 0.1}]
- */
-const valueTuple = function(name, paramObj) {
-    let vt = [name, new Map(Object.entries(paramObj || {}))];
-    if (vt[1].has('q')) {
-        vt[1].set('q', parseFloat(vt[1].get('q')));
-    }
-
-    return new ValueTuple(vt[0], vt[1]);
-};
-exports.valueTuple = valueTuple;
-
-/*
  * Given a header value that supports ','-delimited list syntax, return an
  * array representing the list.
  */
@@ -331,7 +310,7 @@ exports.awsSplitHeaderValue = awsSplitHeaderValue;
  * Applications should probably just use this directly.
  */
 const awsNegotiateEncoding = function(headers, serverValues) {
-    const IDENTITY = valueTuple('identity', {'q': 1});
+    const IDENTITY = new ValueTuple('identity', new Map([['q', 1]]));
 
     /* 
      * No Accept-Encoding header means the client will accept anything. Pick the
