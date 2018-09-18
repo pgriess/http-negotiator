@@ -71,7 +71,7 @@ describe('performNegotiation()', function() {
                 [VT('c', {q: 1}), VT('z', {q: 1})],
                 hcn.strictValueMatch,
                 hcn.strictValueCompare),
-            'c');
+            VT('c', {q: 1}));
     });
     it('should fail if there are no common values', function() {
         assert.deepStrictEqual(
@@ -89,7 +89,7 @@ describe('performNegotiation()', function() {
                 [VT('b', {q: 0.9}), VT('c', {q: 1})],
                 hcn.strictValueMatch,
                 hcn.strictValueCompare),
-            'b');
+            VT('b', {q: 0.9}));
     });
     it('should take server weights into account', function() {
         assert.deepStrictEqual(
@@ -98,7 +98,7 @@ describe('performNegotiation()', function() {
                 [VT('b', {q: 0.9}), VT('c', {q: 1})],
                 hcn.strictValueMatch,
                 hcn.strictValueCompare),
-            'c');
+            VT('c', {q: 1}));
     });
     it('should consider 0-weights as a non-match', function() {
         assert.deepStrictEqual(
@@ -116,7 +116,7 @@ describe('performNegotiation()', function() {
                 [VT('a', {q: 0.25}), VT('b', {q: 1})],
                 hcn.wildcardValueMatch,
                 hcn.wildcardValueCompare),
-            'b');
+            VT('b', {q: 1}));
     });
     it('should not apply wildcard to earlier values', function() {
         assert.deepStrictEqual(
@@ -125,7 +125,16 @@ describe('performNegotiation()', function() {
                 [VT('a', {q: 0.8}), VT('b', {q: 1})],
                 hcn.wildcardValueMatch,
                 hcn.wildcardValueCompare),
-            'a');
+            VT('a', {q: 0.8}));
+    });
+    it('should pass server parameters through to negotiated result', function() {
+        assert.deepStrictEqual(
+            hcn.performNegotiation(
+                [VT('a'), VT('b'), VT('*', {q: 0.5})],
+                [VT('a', {q: 0.8}), VT('b', {z: 'yabba'})],
+                hcn.wildcardValueMatch,
+                hcn.wildcardValueCompare),
+            VT('b', {z: 'yabba'}));
     });
 });
 

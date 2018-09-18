@@ -148,10 +148,8 @@ const performNegotiation = function(clientValues, serverValues, matcher, compara
 
         /*
          * Note that we push the server value here as it's expected not to be a wildcard
-         * 
-         * XXX: Need return full tuple not just name
          */
-        scores.push([sv.value, score]);
+        scores.push([sv, score]);
     });
 
     if (scores.length === 0) {
@@ -205,6 +203,8 @@ exports.parameterMatch = parameterMatch;
  * 
  * XXX: Requires the client params that we're matching against as otherwise we
  *      don't know which is better *relative to that*.
+ * 
+ * XXX: Look at qvalues here and get rid of sortHeadersByQValue()
  */
 const parameterCompare = function(ap, bp) {
     return 0;
@@ -352,10 +352,15 @@ const awsNegotiateEncoding = function(headers, serverValues) {
         parsedValues.unshift(IDENTITY);
     }
 
-    return performNegotiation(
+    const sv = performNegotiation(
         sortHeadersByQValue(parsedValues),
         serverValues,
         wildcardValueMatch,
         wildcardValueCompare);
+    if (!sv) {
+        return sv;
+    }
+
+    return sv.value;
 };
 exports.awsNegotiateEncoding = awsNegotiateEncoding;
