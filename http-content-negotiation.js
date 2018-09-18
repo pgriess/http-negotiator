@@ -33,6 +33,15 @@ exports.ValueTuple = ValueTuple;
 /*
  * Given a header value that supports ','-delimited list syntax, return an
  * array representing the list.
+ * 
+ * For example the header 'Accept-Encoding: gzip, br;q=0.9, identity;q=0.1'
+ * would be split into 3 values
+ * 
+ *  [
+ *      'gzip',
+ *      'br;q=0.9',
+ *      'identity;q=0.1'
+ *  ]
  */
 const splitHeaderValue = function(header) {
     return header.replace(/ +/g, '').split(',');
