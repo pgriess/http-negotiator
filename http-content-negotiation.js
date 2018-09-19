@@ -1,3 +1,5 @@
+const EMPTY_MAP = new Map();
+
 /*
  * The ValueTuple type.
  * 
@@ -39,12 +41,14 @@ exports.ValueTuple = ValueTuple;
  * content options being requested and offered. Matchers are invoked
  * as (serverTuple, clientTuple) and return a truthy value.
  * 
- * Comparators are used to select the ValueTuple that *best* satisfies the
- * requirements of a single client ValueTuple. All server ValueTuples thar are
- * passed to comparators are guaranteed to have passed the relevant matcher.
- * Comparators are invoked as (valueTupleA, valueTupleA) and return less than 0
- * if valueTupleA is less than valueTuple B, 0 if they are equal, and greater
- * than zero if valueTupleB is less than valueTupleA.
+ * Comparators are used to select the client ValueTuple that *best* satisfies
+ * the requirements of a single server ValueTuple. Comparators are invoked as
+ * (serverTuple, clientTupleA, clientTupleB) and return less than 0 if A is
+ * preferable to B, 0 if they are equalivalent, and greater than zero if B is
+ * preverable to A. All client ValueTuples that are passed to comparators are
+ * guaranteed to have passed the relevant matcher. That is, comparator
+ * implementations can assume that the client tuples match the specified server
+ * tuple.
  * 
  * Matchers and comparators are always paired together. For example,
  * mediaRangeValueMatch() and mediaRangeValueCompare() are always used
@@ -59,11 +63,11 @@ exports.ValueTuple = ValueTuple;
  * These aren't directly, but is instead used by other matchers/comparators to
  * handle parameters.
  */
-const parameterMatch = (sp, cp) => {
-    for (spt of sp) {
-        const spn = spt[0];
-        const spv = spt[1];
+const parameterMatch = (st, ct) => {
+    const sp = st.properties;
+    const cp = ct.properties;
 
+    for (const [spn, spv] of sp) {
         /* The 'q' parameter is special; skip it */
         if (spn === 'q') {
             continue;
@@ -82,9 +86,7 @@ const parameterMatch = (sp, cp) => {
         }
     }
 
-    for (cpt of cp) {
-        const cpn = cpt[0];
-
+    for (const [cpn, cpv] of cp) {
         if (cpn !== 'q' && !sp.has(cpn)) {
             return false;
         }
@@ -94,16 +96,22 @@ const parameterMatch = (sp, cp) => {
 };
 exports.parameterMatch = parameterMatch;
 
-const parameterCompare = (ap, bp) => {
-    /*
-    * TODO: Implement me!
-    * 
-    * XXX: Requires the client params that we're matching against as otherwise we
-    *      don't know which is better *relative to that*.
-    * 
-    * XXX: Look at qvalues here and get rid of sortHeadersByQValue()
-    */
-    return 0;
+const parameterCompare = (st, at, bt) => {
+    const sp = st.properties;
+    const ap = at.properties;
+    const bp = bt.properties;
+
+    /* 
+     * Count the number of non 'q' parameters that each of the client
+     * parameters has in common with the server parameters.
+     */
+    const acnt = Array.from(ap.keys()) .filter((k) => { return k !== 'q' && sp.has(k); }).length;
+    const bcnt = Array.from(bp.keys()).filter((k) => { return k !== 'q' && sp.has(k); }).length;
+    if (acnt !== bcnt) {
+        return bcnt - acnt;
+    }
+
+    return bt.q - at.q;
 };
 exports.parameterCompare = parameterCompare;
 
@@ -119,14 +127,14 @@ const wildcardValueMatch = (st, ct) => {
         return false;
     }
 
-    return parameterMatch(st.properties, ct.properties);
+    return parameterMatch(st, ct);
 };
 exports.wildcardValueMatch = wildcardValueMatch;
 
-const wildcardValueCompare = (at, bt) => {
+const wildcardValueCompare = (st, at, bt) => {
     if (at.value === '*' || bt.value === '*') {
         if (at.value === '*' && bt.value === '*') {
-            return parameterCompare(at.properties, bt.properties);
+            return parameterCompare(st, at, bt);
         } else if (at.value === '*') {
             return 1;
         } else {
@@ -134,7 +142,7 @@ const wildcardValueCompare = (at, bt) => {
         }
     }
 
-    return parameterCompare(at.properties, bt.properties);
+    return parameterCompare(st, at, bt);
 };
 exports.wildcardValueCompare = wildcardValueCompare;
 
@@ -147,33 +155,32 @@ exports.wildcardValueCompare = wildcardValueCompare;
  * header.
  */
 const mediaRangeValueMatch = (st, ct) => {
-    const EMPTY_PARAMS = new Map();
-
     const sTypes = st.value.split('/');
     const cTypes = ct.value.split('/');
 
     return wildcardValueMatch(
-            new ValueTuple(sTypes[0], EMPTY_PARAMS),
-            new ValueTuple(cTypes[0], EMPTY_PARAMS)) &&
+            new ValueTuple(sTypes[0], EMPTY_MAP),
+            new ValueTuple(cTypes[0], EMPTY_MAP)) &&
         wildcardValueMatch(
             new ValueTuple(sTypes[1], st.properties),
             new ValueTuple(cTypes[1], ct.properties));
 };
 exports.mediaRangeValueMatch = mediaRangeValueMatch;
 
-const mediaRangeValueCompare = (at, bt) => {
+const mediaRangeValueCompare = (st, at, bt) => {
     const aTypes = at.value.split('/');
     const bTypes = bt.value.split('/');
 
-    /* XXX: This may be wrong. Should we compare parameters entirely ater the types? */
-    const c = wildcardValueCompare(
-        new ValueTuple(aTypes[0], at.properties),
-        new ValueTuple(bTypes[0], bt.properties));
+    let c = wildcardValueCompare(
+        new ValueTuple(st.value, EMPTY_MAP),
+        new ValueTuple(aTypes[0], EMPTY_MAP),
+        new ValueTuple(bTypes[0], EMPTY_MAP));
     if (c !== 0) {
         return c;
     }
 
     return wildcardValueCompare(
+        st,
         new ValueTuple(aTypes[1], at.properties),
         new ValueTuple(bTypes[1], bt.properties));
 };
@@ -231,35 +238,6 @@ const parseValueTuple = (v) => {
 exports.parseValueTuple = parseValueTuple;
 
 /*
- * Given an array of 2-element [value name, parameter map] arrays, return a
- * sorted array of [value name, -value) tuples, ordered by the value of the
- * 'q' parameter.
- *
- * If multiple instances of the same value are found, the last instance will
- * override parameters of the earlier values.
- *
- * For example given the below header values, the output of this function will
- * be [['b', 3], ['a', 2]].
- *
- *      [['a', {'q': '5'}], ['a', {'q': '2'}], ['b', {'q': '3'}]]
- */
-const sortHeadersByQValue = (headerValues) => {
-    /* Filter out duplicates by name, preserving the last seen */
-    var seen = new Set();
-    const filteredValues = headerValues.slice().reverse().filter((vt) => {
-        if (seen.has(vt.value)) {
-            return false;
-        }
-
-        seen.add(vt.value);
-        return true;
-    });
-
-    return filteredValues.sort((a, b) => { return b.q - a.q; });
-};
-exports.sortHeadersByQValue = sortHeadersByQValue;
-
-/*
  * Perform content negotiation.
  *
  * Given sorted arrays of supported (value name, q-value) tuples, select a
@@ -274,9 +252,9 @@ const performNegotiation = (clientValues, serverValues, matcher, comparator) => 
             return;
         }
 
-        /* Pick the most specific server value for the current client value */
+        /* Pick the most specific client value for the current server value */
         const cv = matchingCv
-            .sort((a, b) => { return comparator(a, b); })[0];
+            .sort((a, b) => { return comparator(sv, a, b); })[0];
 
         const score = cv.q * sv.q;
         if (score <= 0) {
@@ -352,7 +330,7 @@ const awsNegotiateEncoding = (headers, serverValues) => {
     }
 
     const sv = performNegotiation(
-        sortHeadersByQValue(parsedValues),
+        parsedValues,
         serverValues,
         wildcardValueMatch,
         wildcardValueCompare);

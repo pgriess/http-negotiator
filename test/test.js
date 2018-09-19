@@ -2,14 +2,21 @@ var hcn = require('../http-content-negotiation.js');
 var assert = require('assert');
 
 /*
- * Helper to construct a ValueTuple from an Object
+ * Helper to create a Map from an Object.
  */
-const VT = (value, object) => {
+const VP = (object) => {
     if (object === null || object === undefined) {
         object = {};
     }
 
-    return new hcn.ValueTuple(value, new Map(Object.entries(object)));
+    return new Map(Object.entries(object));
+};
+
+/*
+ * Helper to construct a ValueTuple from an Object
+ */
+const VT = (value, object) => {
+    return new hcn.ValueTuple(value, VP(object));
 };
 
 describe('splitHeaderValue()', () => {
@@ -47,19 +54,6 @@ describe('parseValueTuple()', () => {
         assert.deepStrictEqual(
             hcn.parseValueTuple('image/*;a=1;b=2;q=0.25'),
             VT('image/*', {a: '1', b: '2', q: 0.25}));
-    });
-});
-
-describe('sortHeadersbyQValue', () => {
-    it('should respect q attribute values', () => {
-        assert.deepStrictEqual(
-            hcn.sortHeadersByQValue([VT('gzip', {q: 0.25})]),
-            [VT('gzip', {q: 0.25})]);
-    });
-    it('should allow later items to override earlier ones', () => {
-        assert.deepStrictEqual(
-            hcn.sortHeadersByQValue([VT('gzip', {q: 1}), VT('br', {q: 0.8}), VT('gzip', {q: 0.2})]),
-            [VT('br', {q: 0.8}), VT('gzip', {q: 0.2})]);
     });
 });
 
@@ -138,102 +132,128 @@ describe('performNegotiation()', () => {
     });
 });
 
-describe('matchersAndComparators', () => {
-    describe('wildcard', () => {
-        it('should match on identical values', () => {
-            assert.equal(hcn.wildcardValueMatch(VT('a'), VT('a')), true);
-        });
-        it('should not match on different values', () => {
-            assert.equal(hcn.wildcardValueMatch(VT('a'), VT('b')), false);
-        });
-        it('should match on client wildcard', () => {
-            assert.equal(hcn.wildcardValueMatch(VT('a'), VT('*')), true);
-        });
-        it('should match on exact parameters', () => {
-            assert.equal(
-                hcn.wildcardValueMatch(VT('a', {a: '1', b: '2'}), VT('a', {a: '1', b: '2'})), true);
-        });
-        it('should not match on subset of client parameters', () => {
-            assert.equal(
-                hcn.wildcardValueMatch(VT('a', {a: '1'}), VT('a', {a: '1', b: '2'})), false);
-        });
-        it('should match on superset of client parameters', () => {
-            assert.equal(
-                hcn.wildcardValueMatch(VT('a', {a: '1', b: '2'}), VT('a', {a: '1'})), true);
-        });
-        it('should ignore q attribute from server', () => {
-            assert.equal(
-                hcn.wildcardValueMatch(
-                    VT('a', {a: '1', b: '2', q: 3}),
-                    VT('a', {a: '1', b: '2'})),
-                true);
-        });
-        it('should ignore q attribute from client', () => {
-            assert.equal(
-                hcn.wildcardValueMatch(
-                    VT('a', {a: '1', b: '2'}),
-                    VT('a', {a: '1', b: '2', q: 3})),
-                true);
-        });
-        it('should ignore mismached q attributes', () => {
-            assert.equal(
-                hcn.wildcardValueMatch(
-                    VT('a', {a: '1', b: '2', q: 4}),
-                    VT('a', {a: '1', b: '2', q: 3})),
-                true);
-        });
-        it('should match on superset of client parameters with wildcard', () => {
-            assert.equal(hcn.wildcardValueMatch(VT('a', {a: '1'}), VT('*')), true);
-        });
-        it('should compare wildcards after exact matches', () => {
-            assert.equal(hcn.wildcardValueCompare(VT('a'), VT('*')), -1);
-            assert.equal(hcn.wildcardValueCompare(VT('*'), VT('a')), 1);
-        });
-        it('should compare identical values to 0', () => {
-            assert.equal(hcn.wildcardValueCompare(VT('a'), VT('a')), 0);
-            assert.equal(hcn.wildcardValueCompare(VT('*'), VT('*')), 0);
-        });
+describe('parameterMatch()', () => {
+    it('should match on exact parameters', () => {
+        assert.ok(hcn.parameterMatch(VT('a', {a: '1', b: '2'}), VT('a', {a: '1', b: '2'})));
     });
-    describe('mediaRange', () => {
-        it('should match on identical values', () => {
-            assert.equal(hcn.mediaRangeValueMatch(VT('a/aa'), VT('a/aa')), true);
-        });
-        it('should not match on different types', () => {
-            assert.equal(hcn.mediaRangeValueMatch(VT('a/aa'), VT('b/aa')), false);
-        });
-        it('should not match on different subtypes', () => {
-            assert.equal(hcn.mediaRangeValueMatch(VT('a/aa'), VT('a/bb')), false);
-        });
-        it('should match on type wildcard', () => {
-            assert.equal(hcn.mediaRangeValueMatch(VT('a/aa'), VT('*/aa')), true);
-        });
-        it('should match on subtype wildcard', () => {
-            assert.equal(hcn.mediaRangeValueMatch(VT('a/aa'), VT('a/*')), true);
-        });
-        it('should match on type and subtype wildcards', () => {
-            assert.equal(hcn.mediaRangeValueMatch(VT('a/aa'), VT('*/*')), true);
-        });
-        it('should compare wildcards after exact matches', () => {
-            assert.equal(hcn.mediaRangeValueCompare(VT('a/aa'), VT('a/aa')), 0);
-            assert.equal(hcn.mediaRangeValueCompare(VT('a/aa'), VT('a/*')), -1);
-            assert.equal(hcn.mediaRangeValueCompare(VT('a/aa'), VT('*/aa')), -1);
-            assert.equal(hcn.mediaRangeValueCompare(VT('a/aa'), VT('*/*')), -1);
+    it('should not match on subset of client parameters', () => {
+        assert.ok(!hcn.parameterMatch(VT('a', {a: '1'}), VT('a', {a: '1', b: '2'})));
+    });
+    it('should match on superset of client parameters', () => {
+        assert.ok(hcn.parameterMatch(VT('a', {a: '1', b: '2'}), VT('a', {a: '1'})));
+    });
+    it('should ignore q attribute from server', () => {
+        assert.ok(hcn.parameterMatch(VT('a', {a: '1', b: '2', q: 3}), VT('a', {a: '1', b: '2'})));
+    });
+    it('should ignore q attribute from client', () => {
+        assert.ok(hcn.parameterMatch(VT('a', {a: '1', b: '2'}), VT('a', {a: '1', b: '2', q: 3})));
+    });
+    it('should ignore mismached q attributes', () => {
+        assert.ok(hcn.parameterMatch(VT('a', {a: '1', b: '2', q: 4}), VT('a', {a: '1', b: '2', q: 3})));
+    });
+});
 
-            assert.equal(hcn.mediaRangeValueCompare(VT('a/*'), VT('a/aa')), 1);
-            assert.equal(hcn.mediaRangeValueCompare(VT('a/*'), VT('a/*')), 0);
-            assert.equal(hcn.mediaRangeValueCompare(VT('a/*'), VT('*/aa')), -1);
-            assert.equal(hcn.mediaRangeValueCompare(VT('a/*'), VT('*/*')), -1);
+describe('parameterCompare()', () => {
+    it('should prefer more specific matches', () => {
+        assert.ok(hcn.parameterCompare(VT('a', {a: '1', b: '2'}), VT('a', {a: '1'}), VT('a')) < 0);
+        assert.ok(hcn.parameterCompare(VT('a', {a: '1', b: '2'}), VT('a'), VT('a', {a: '1'})) > 0);
+    });
+    it('should consider equal number of matched parameters equivalent', () => {
+        assert.equal(hcn.parameterCompare(VT('a', {a: '1', b: '2'}), VT('a', {a: '1'}), VT('a', {b: '2'})), 0);
+        assert.equal(hcn.parameterCompare(VT('a', {a: '1', b: '2'}), VT('a'), VT('a')), 0);
+    });
+    it('should fall back to qvalues', () => {
+        assert.ok(hcn.parameterCompare(VT('a', {a: '1'}), VT('a'), VT('a', {q: 0.5})) < 0);
+        assert.ok(hcn.parameterCompare(VT('a', {a: '1'}), VT('a'), VT('a', {q: 2})) > 0);
+    });
+});
 
-            assert.equal(hcn.mediaRangeValueCompare(VT('*/aa'), VT('a/aa')), 1);
-            assert.equal(hcn.mediaRangeValueCompare(VT('*/aa'), VT('a/*')), 1);
-            assert.equal(hcn.mediaRangeValueCompare(VT('*/aa'), VT('*/aa')), 0);
-            assert.equal(hcn.mediaRangeValueCompare(VT('*/aa'), VT('*/*')), -1);
+describe('wildcardValueMatch()', () => {
+    it('should match on identical values', () => {
+        assert.ok(hcn.wildcardValueMatch(VT('a'), VT('a')));
+    });
+    it('should not match on different values', () => {
+        assert.ok(!hcn.wildcardValueMatch(VT('a'), VT('b')));
+    });
+    it('should match on client wildcard', () => {
+        assert.ok(hcn.wildcardValueMatch(VT('a'), VT('*')));
+    });
+    it('should not match on server wildcard', () => {
+        assert.ok(!hcn.wildcardValueMatch(VT('*'), VT('a')));
+    });
+    it('should use parameterMatch()', () => {
+        assert.ok(!hcn.wildcardValueMatch(VT('a'), VT('*', {a: '1'})));
+        assert.ok(hcn.wildcardValueMatch(VT('a', {a: '1'}), VT('*')));
+        assert.ok(hcn.wildcardValueMatch(VT('a'), VT('*', {q: 13})));
+    });
+});
 
-            assert.equal(hcn.mediaRangeValueCompare(VT('*/*'), VT('a/aa')), 1);
-            assert.equal(hcn.mediaRangeValueCompare(VT('*/*'), VT('a/*')), 1);
-            assert.equal(hcn.mediaRangeValueCompare(VT('*/*'), VT('*/aa')), 1);
-            assert.equal(hcn.mediaRangeValueCompare(VT('*/*'), VT('*/*')), 0);
-        });
+describe('wildcardValueCompare()', () => {
+    it('should compare wildcards after exact matches', () => {
+        assert.ok(hcn.wildcardValueCompare(VT('a'), VT('a'), VT('*')) < 0);
+        assert.ok(hcn.wildcardValueCompare(VT('a'), VT('*'), VT('a')) > 0);
+    });
+    it('should compare identical values to 0', () => {
+        assert.equal(hcn.wildcardValueCompare(VT('a'), VT('a'), VT('a')), 0);
+        assert.equal(hcn.wildcardValueCompare(VT('a'), VT('*'), VT('*')), 0);
+    });
+    it('should use parameterCompare()', () => {
+        assert.ok(hcn.wildcardValueCompare(VT('a', {a: '1'}), VT('a', {a: '1'}), VT('a')) < 0);
+        assert.ok(hcn.wildcardValueCompare(VT('a', {a: '1'}), VT('a'), VT('a', {a: '1'})) > 0);
+    });
+});
+
+describe('mediaRangeValueMatch()', () => {
+    it('should match on identical values', () => {
+        assert.equal(hcn.mediaRangeValueMatch(VT('a/aa'), VT('a/aa')), true);
+    });
+    it('should not match on different types', () => {
+        assert.equal(hcn.mediaRangeValueMatch(VT('a/aa'), VT('b/aa')), false);
+    });
+    it('should not match on different subtypes', () => {
+        assert.equal(hcn.mediaRangeValueMatch(VT('a/aa'), VT('a/bb')), false);
+    });
+    it('should match on type wildcard', () => {
+        assert.equal(hcn.mediaRangeValueMatch(VT('a/aa'), VT('*/aa')), true);
+    });
+    it('should match on subtype wildcard', () => {
+        assert.equal(hcn.mediaRangeValueMatch(VT('a/aa'), VT('a/*')), true);
+    });
+    it('should match on type and subtype wildcards', () => {
+        assert.equal(hcn.mediaRangeValueMatch(VT('a/aa'), VT('*/*')), true);
+    });
+    it('should use parameterMatch()', () => {
+        assert.ok(!hcn.mediaRangeValueMatch(VT('a/aa'), VT('a/aa', {a: '1'})));
+        assert.ok(hcn.mediaRangeValueMatch(VT('a/aa', {a: '1'}), VT('a/aa')));
+        assert.ok(hcn.mediaRangeValueMatch(VT('a/aa'), VT('a/aa', {q: 13})));
+    });
+});
+
+describe('mediaRangeValueCompare()', () => {
+    it ('should support the full matrix of wildcard positions', () => {
+        assert.equal(hcn.mediaRangeValueCompare(VT('a/aa'), VT('a/aa'), VT('a/aa')), 0);
+        assert.ok(hcn.mediaRangeValueCompare(VT('a/aa'), VT('a/aa'), VT('a/*')) < 0);
+        assert.ok(hcn.mediaRangeValueCompare(VT('a/aa'), VT('a/aa'), VT('*/aa')) < 0);
+        assert.ok(hcn.mediaRangeValueCompare(VT('a/aa'), VT('a/aa'), VT('*/*')) < 0);
+
+        assert.ok(hcn.mediaRangeValueCompare(VT('a/aa'), VT('a/*'), VT('a/aa')) > 0);
+        assert.equal(hcn.mediaRangeValueCompare(VT('a/aa'), VT('a/*'), VT('a/*')), 0);
+        assert.ok(hcn.mediaRangeValueCompare(VT('a/aa'), VT('a/*'), VT('*/aa')) < 0);
+        assert.ok(hcn.mediaRangeValueCompare(VT('a/aa'), VT('a/*'), VT('*/*')) < 0);
+
+        assert.ok(hcn.mediaRangeValueCompare(VT('a/aa'), VT('*/aa'), VT('a/aa')) > 0);
+        assert.ok(hcn.mediaRangeValueCompare(VT('a/aa'), VT('*/aa'), VT('a/*')) > 0);
+        assert.equal(hcn.mediaRangeValueCompare(VT('a/aa'), VT('*/aa'), VT('*/aa')), 0);
+        assert.ok(hcn.mediaRangeValueCompare(VT('a/aa'), VT('*/aa'), VT('*/*')) < 0);
+
+        assert.ok(hcn.mediaRangeValueCompare(VT('a/aa'), VT('*/*'), VT('a/aa')) > 0);
+        assert.ok(hcn.mediaRangeValueCompare(VT('a/aa'), VT('*/*'), VT('a/*')) > 0);
+        assert.ok(hcn.mediaRangeValueCompare(VT('a/aa'), VT('*/*'), VT('*/aa')) > 0);
+        assert.equal(hcn.mediaRangeValueCompare(VT('a/aa'), VT('*/*'), VT('*/*')), 0);
+    });
+    it('should use parameterCompare()', () => {
+        assert.ok(hcn.wildcardValueCompare(VT('a', {a: '1'}), VT('a', {a: '1'}), VT('a')) < 0);
+        assert.ok(hcn.wildcardValueCompare(VT('a', {a: '1'}), VT('a'), VT('a', {a: '1'})) > 0);
     });
 });
 
