@@ -17,7 +17,7 @@
  * convenice attribute for accessing this directly, returning the default value
  * of 1 if it is un-specified.
  */
-let ValueTuple = class {
+const ValueTuple = class {
     constructor(value, properties) {
         this.value = value;
         this.properties = properties;
@@ -59,7 +59,7 @@ exports.ValueTuple = ValueTuple;
  * These aren't directly, but is instead used by other matchers/comparators to
  * handle parameters.
  */
-const parameterMatch = function(sp, cp) {
+const parameterMatch = (sp, cp) => {
     for (spt of sp) {
         const spn = spt[0];
         const spv = spt[1];
@@ -94,7 +94,7 @@ const parameterMatch = function(sp, cp) {
 };
 exports.parameterMatch = parameterMatch;
 
-const parameterCompare = function(ap, bp) {
+const parameterCompare = (ap, bp) => {
     /*
     * TODO: Implement me!
     * 
@@ -114,7 +114,7 @@ exports.parameterCompare = parameterCompare;
  * matches should take lower precedence than exact matches. This is used when
  * performing negotiation on the Accept-Encoding header.
  */
-const wildcardValueMatch = function(st, ct) {
+const wildcardValueMatch = (st, ct) => {
     if (st.value !== ct.value && ct.value !== '*') {
         return false;
     }
@@ -123,7 +123,7 @@ const wildcardValueMatch = function(st, ct) {
 };
 exports.wildcardValueMatch = wildcardValueMatch;
 
-const wildcardValueCompare = function(at, bt) {
+const wildcardValueCompare = (at, bt) => {
     if (at.value === '*' || bt.value === '*') {
         if (at.value === '*' && bt.value === '*') {
             return parameterCompare(at.properties, bt.properties);
@@ -146,7 +146,7 @@ exports.wildcardValueCompare = wildcardValueCompare;
  * than exact matches. This is used when performing negotiation on the Accept
  * header.
  */
-const mediaRangeValueMatch = function(st, ct) {
+const mediaRangeValueMatch = (st, ct) => {
     const EMPTY_PARAMS = new Map();
 
     const sTypes = st.value.split('/');
@@ -161,7 +161,7 @@ const mediaRangeValueMatch = function(st, ct) {
 };
 exports.mediaRangeValueMatch = mediaRangeValueMatch;
 
-const mediaRangeValueCompare = function(at, bt) {
+const mediaRangeValueCompare = (at, bt) => {
     const aTypes = at.value.split('/');
     const bTypes = bt.value.split('/');
 
@@ -192,7 +192,7 @@ exports.mediaRangeValueCompare = mediaRangeValueCompare;
  *      'identity;q=0.1'
  *  ]
  */
-const splitHeaderValue = function(header) {
+const splitHeaderValue = (header) => {
     return header.replace(/ +/g, '').split(',');
 };
 exports.splitHeaderValue = splitHeaderValue;
@@ -207,12 +207,12 @@ exports.splitHeaderValue = splitHeaderValue;
  * The 'q' parameter here is special. Unlike other parameters which are passed
  * through as un-interpted strings, 'q' will be run through parseFloat().
  */
-const parseValueTuple = function(v) {
+const parseValueTuple = (v) => {
     var params = new Map([['q', 1]]);
 
     const s = v.split(';');
     if (s.length > 0) {
-        s.forEach(function(av, idx) {
+        s.forEach((av, idx) => {
             if (idx === 0) {
                 return;
             }
@@ -243,10 +243,10 @@ exports.parseValueTuple = parseValueTuple;
  *
  *      [['a', {'q': '5'}], ['a', {'q': '2'}], ['b', {'q': '3'}]]
  */
-const sortHeadersByQValue = function(headerValues) {
+const sortHeadersByQValue = (headerValues) => {
     /* Filter out duplicates by name, preserving the last seen */
     var seen = new Set();
-    const filteredValues = headerValues.slice().reverse().filter(function(vt) {
+    const filteredValues = headerValues.slice().reverse().filter((vt) => {
         if (seen.has(vt.value)) {
             return false;
         }
@@ -255,7 +255,7 @@ const sortHeadersByQValue = function(headerValues) {
         return true;
     });
 
-    return filteredValues.sort(function(a, b) { return b.q - a.q; });
+    return filteredValues.sort((a, b) => { return b.q - a.q; });
 };
 exports.sortHeadersByQValue = sortHeadersByQValue;
 
@@ -265,18 +265,18 @@ exports.sortHeadersByQValue = sortHeadersByQValue;
  * Given sorted arrays of supported (value name, q-value) tuples, select a
  * value that is mutuaully acceptable. Returns null is nothing could be found.
  */
-const performNegotiation = function(clientValues, serverValues, matcher, comparator) {
+const performNegotiation = (clientValues, serverValues, matcher, comparator) => {
     var scores = [];
-    serverValues.forEach(function(sv) {
+    serverValues.forEach((sv) => {
         /* Get all server values that match the given client value */
-        const matchingCv = clientValues.filter(function(cv) { return matcher(sv, cv); });
+        const matchingCv = clientValues.filter((cv) => { return matcher(sv, cv); });
         if (matchingCv.length === 0) {
             return;
         }
 
         /* Pick the most specific server value for the current client value */
         const cv = matchingCv
-            .sort(function(a, b) { return comparator(a, b); })[0];
+            .sort((a, b) => { return comparator(a, b); })[0];
 
         const score = cv.q * sv.q;
         if (score <= 0) {
@@ -293,7 +293,7 @@ const performNegotiation = function(clientValues, serverValues, matcher, compara
         return null;
     }
 
-    return scores.sort(function(a, b) { return b[1] - a[1]; })[0][0];
+    return scores.sort((a, b) => { return b[1] - a[1]; })[0][0];
 };
 exports.performNegotiation = performNegotiation;
 
@@ -303,8 +303,8 @@ exports.performNegotiation = performNegotiation;
  * This differs from splitHeaderValue in that it accepts AWS header object as
  * input and handles merging multiple instances of a single header.
  */
-const awsSplitHeaderValue = function(headers) {
-    return headers.map(function(ho) { return ho['value']; })
+const awsSplitHeaderValue = (headers) => {
+    return headers.map((ho) => { return ho['value']; })
         .reduce((a, v) => { return a.concat(splitHeaderValue(v)); }, []);
 };
 exports.awsSplitHeaderValue = awsSplitHeaderValue;
@@ -315,7 +315,7 @@ exports.awsSplitHeaderValue = awsSplitHeaderValue;
  * This is a high-level wrapper around the rest of the functions in this file.
  * Applications should probably just use this directly.
  */
-const awsNegotiateEncoding = function(headers, serverValues) {
+const awsNegotiateEncoding = (headers, serverValues) => {
     const IDENTITY = new ValueTuple('identity', new Map([['q', 1]]));
 
     /* 
@@ -325,7 +325,7 @@ const awsNegotiateEncoding = function(headers, serverValues) {
     if (!('accept-encoding' in headers)) {
         return Array
             .from(serverValues)
-            .sort(function(a, b) { return a.q - b.q; })
+            .sort((a, b) => { return a.q - b.q; })
             .pop().value;
     }
 
