@@ -1,3 +1,5 @@
+'use strict';
+
 const EMPTY_MAP = new Map();
 
 /*
