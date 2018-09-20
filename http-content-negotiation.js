@@ -290,7 +290,7 @@ const awsSplitHeaderValue = (headers) => {
 exports.awsSplitHeaderValue = awsSplitHeaderValue;
 
 /*
- * Perform content negotiation from AWS input.
+ * Perform content negotiation based on the Accept-Encoding input header.
  * 
  * This is a high-level wrapper around the rest of the functions in this file.
  * Applications should probably just use this directly.
@@ -343,3 +343,37 @@ const awsNegotiateEncoding = (headers, serverValues) => {
     return sv.value;
 };
 exports.awsNegotiateEncoding = awsNegotiateEncoding;
+
+/*
+ * Perform content negotiation based on the Accept input header.
+ * 
+ * This is a high-level wrapper around the rest of the functions in this file.
+ * Applications should probably just use this directly.
+ */
+const awsNegotiateType = (headers, serverValues) => {
+    /* 
+     * No Accept header means the client will accept anything. Pick the
+     * highest-scoring server value and go with that.
+     */
+    if (!('accept' in headers)) {
+        return Array
+            .from(serverValues)
+            .sort((a, b) => { return a.q - b.q; })
+            .pop().value;
+    }
+
+    /* Parse values and attributes */
+    var parsedValues = awsSplitHeaderValue(headers['accept']).map(parseValueTuple);
+
+    const sv = performNegotiation(
+        parsedValues,
+        serverValues,
+        mediaRangeValueMatch,
+        mediaRangeValueCompare);
+    if (!sv) {
+        return sv;
+    }
+
+    return sv.value;
+};
+exports.awsNegotiateType = awsNegotiateType;

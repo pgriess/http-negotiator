@@ -2,6 +2,7 @@
 
 const {
     awsNegotiateEncoding,
+    awsNegotiateType,
     awsSplitHeaderValue,
     performNegotiation,
     parseValueTuple,
@@ -313,5 +314,29 @@ describe('awsNegotiateEncoding', () => {
                     [{'key': 'Accept-Encoding', 'value': 'gzip;q=0.5, *;q=0'}]},
                 [VT('identity', {q: 1}), VT('gzip', {q: 1})]),
             'gzip');
+    });
+});
+
+describe('awsNegotiateType', () => {
+    it('should return the best server value if no Accept found', () => {
+        equal(
+            awsNegotiateEncoding(
+                {'user-agent': [{'key': 'User-Agent', 'value': 'Firefox'}]},
+                [VT('image/webp', {q: 1.0}), VT('image/jpeg', {q: 0.9})]),
+            'image/webp');
+    });
+    it('should prefer a more specific match', () => {
+        equal(
+            awsNegotiateEncoding(
+                {'accept': [{'key': 'Accept', 'value': 'image/webp, image/*;q=0.8'}]},
+                [VT('image/webp', {q: 1.0}), VT('image/jpeg', {q: 0.9})]),
+            'image/webp');
+    });
+    it('should fall back to wildard match', () => {
+        equal(
+            awsNegotiateEncoding(
+                {'accept': [{'key': 'Accept', 'value': 'image/webp, image/*;q=0.8'}]},
+                [VT('image/bmp', {q: 0.8}), VT('image/jpeg', {q: 0.9})]),
+            'image/jpeg');
     });
 });
