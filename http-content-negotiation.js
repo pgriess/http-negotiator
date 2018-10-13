@@ -111,7 +111,7 @@ const parameterCompare = (st, at, bt) => {
      * Count the number of non 'q' parameters that each of the client
      * parameters has in common with the server parameters.
      */
-    const acnt = Array.from(ap.keys()) .filter((k) => { return k !== 'q' && sp.has(k); }).length;
+    const acnt = Array.from(ap.keys()).filter((k) => { return k !== 'q' && sp.has(k); }).length;
     const bcnt = Array.from(bp.keys()).filter((k) => { return k !== 'q' && sp.has(k); }).length;
     if (acnt !== bcnt) {
         return bcnt - acnt;
@@ -164,7 +164,8 @@ const mediaRangeValueMatch = (st, ct) => {
     const sTypes = st.value.split('/');
     const cTypes = ct.value.split('/');
 
-    return wildcardValueMatch(
+    return
+        wildcardValueMatch(
             new ValueTuple(sTypes[0], EMPTY_MAP),
             new ValueTuple(cTypes[0], EMPTY_MAP)) &&
         wildcardValueMatch(
@@ -177,7 +178,7 @@ const mediaRangeValueCompare = (st, at, bt) => {
     const aTypes = at.value.split('/');
     const bTypes = bt.value.split('/');
 
-    let c = wildcardValueCompare(
+    const c = wildcardValueCompare(
         new ValueTuple(st.value, EMPTY_MAP),
         new ValueTuple(aTypes[0], EMPTY_MAP),
         new ValueTuple(bTypes[0], EMPTY_MAP));
