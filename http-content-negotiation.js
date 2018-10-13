@@ -164,8 +164,7 @@ const mediaRangeValueMatch = (st, ct) => {
     const sTypes = st.value.split('/');
     const cTypes = ct.value.split('/');
 
-    return
-        wildcardValueMatch(
+    return wildcardValueMatch(
             new ValueTuple(sTypes[0], EMPTY_MAP),
             new ValueTuple(cTypes[0], EMPTY_MAP)) &&
         wildcardValueMatch(
