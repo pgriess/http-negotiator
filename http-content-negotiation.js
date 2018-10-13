@@ -217,7 +217,7 @@ exports.splitHeaderValue = splitHeaderValue;
  * through as un-interpted strings, 'q' will be run through parseFloat().
  */
 const parseValueTuple = (v) => {
-    var params = new Map([['q', 1]]);
+    var params = new Map();
 
     const s = v.split(';');
     if (s.length > 0) {

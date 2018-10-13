@@ -51,19 +51,17 @@ describe('splitHeaderValue()', () => {
 
 describe('parseValueTuple()', () => {
     it('should handle items with no attributes', () => {
-        deepStrictEqual(
-            parseValueTuple('foo'),
-            VT('foo', {q: 1}));
+        deepStrictEqual(parseValueTuple('foo'), VT('foo'));
     });
     it('should parse multiple attributes with values', () => {
         deepStrictEqual(
             parseValueTuple('foo;a=1;b=2'),
-            VT('foo', {q: 1, a: '1', b: '2'}));
+            VT('foo', {a: '1', b: '2'}));
     });
     it('should handle attributes after wildcards', () => {
         deepStrictEqual(
             parseValueTuple('image/*;a=1;b=2'),
-            VT('image/*', {q: 1, a: '1', b: '2'}));
+            VT('image/*', {a: '1', b: '2'}));
     });
     it('should not override an explicitly specified q parameter', () => {
         deepStrictEqual(
