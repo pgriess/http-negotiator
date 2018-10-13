@@ -1,10 +1,10 @@
 'use strict';
 
 const {
-    awsNegotiateEncoding,
-    awsNegotiateType,
     awsSplitHeaderValue,
     performNegotiation,
+    performEncodingNegotiation,
+    performTypeNegotiation,
     parseValueTuple,
     splitHeaderValue,
     mediaRangeValueMatch,
@@ -270,6 +270,82 @@ describe('mediaRangeValueCompare()', () => {
     });
 });
 
+describe('performEncodingNegotiation', () => {
+    it('should return the best server value if no Accept-Encoding found', () => {
+        deepStrictEqual(
+            performEncodingNegotiation(
+                [],
+                [VT('gzip', {q: 0.5}), VT('br', {q: 1}), VT('identity', {q: 0.1})]),
+            VT('br', {q: 1}, 1));
+    });
+    it('should assume an implicit identity;q=1 value', () => {
+        deepStrictEqual(
+            performEncodingNegotiation(
+                [VT('gzip', {q: 0.5})],
+                [VT('identity', {q: 1}), VT('gzip', {q: 1})]),
+            VT('identity', {q: 1}, 1));
+    });
+    it('should allow implicit identity value to be overridden explicitly', () => {
+        deepStrictEqual(
+            performEncodingNegotiation(
+                [VT('gzip', {q: 0.5}), VT('identity', {q: 0})],
+                [VT('identity', {q: 1}), VT('gzip', {q: 1})]),
+            VT('gzip', {q: 1}, 0.5));
+    });
+    it('should allow implicit identity value to be overridden by wildcard', () => {
+        deepStrictEqual(
+            performEncodingNegotiation(
+                [VT('gzip', {q: 0.5}), VT('*', {q: 0})],
+                [VT('identity', {q: 1}), VT('gzip', {q: 1})]),
+            VT('gzip', {q: 1}, 0.5));
+    });
+});
+
+describe('performTypeNegotiation', () => {
+    it('should return the best server value if no Accept found', () => {
+        deepStrictEqual(
+            performTypeNegotiation(
+                [],
+                [VT('image/webp', {q: 1}), VT('image/jpeg', {q: 0.9})]),
+            VT('image/webp', {q: 1}, 1));
+    });
+    it('should prefer a more specific match', () => {
+        deepStrictEqual(
+            performTypeNegotiation(
+                [VT('image/webp'), VT('image/*', {q: 0.8})],
+                [VT('image/webp', {q: 1.0}), VT('image/jpeg', {q: 0.9})]),
+            VT('image/webp', {q: 1}, 1));
+    });
+    it('should fall back to wildard match', () => {
+        deepStrictEqual(
+            performTypeNegotiation(
+                [VT('image/webp'), VT('image/*', {q: 0.8})],
+                [VT('image/bmp', {q: 0.8}), VT('image/jpeg', {q: 0.9})]),
+            VT('image/jpeg', {q: 0.9}, 0.8 * 0.9));
+    });
+    it('should consider full wildcard as having default q=0.01', () => {
+        deepStrictEqual(
+            performTypeNegotiation(
+                [VT('text/plain'), VT('*/*')],
+                [VT('text/plain', {q: 0.001}), VT('text/html')]),
+            VT('text/html', {}, 0.01));
+    });
+    it('should consider subtype wildcard as having default q=0.02', () => {
+        deepStrictEqual(
+            performTypeNegotiation(
+                [VT('text/plain'), VT('text/*')],
+                [VT('text/plain', {q: 0.001}), VT('text/html')]),
+            VT('text/html', {}, 0.02));
+    });
+    it('should not override explicitly-specified wildcard qvalue', () => {
+        deepStrictEqual(
+            performTypeNegotiation(
+                [VT('text/plain'), VT('*/*', {q: 1})],
+                [VT('text/plain', {q: 0.001}), VT('text/html')]),
+            VT('text/html', {}, 1));
+    });
+});
+
 describe('awsSplitHeaderValue', () => {
     it('should combine and split multiple headers', () => {
         deepStrictEqual(
@@ -278,84 +354,5 @@ describe('awsSplitHeaderValue', () => {
                 {'key': 'Accept-Encoding', 'value': 'identity, deflate'}]),
             ['deflate', 'gzip', 'br', 'identity', 'deflate']
         );
-    });
-});
-
-describe('awsNegotiateEncoding', () => {
-    it('should return the best server value if no Accept-Encoding found', () => {
-        deepStrictEqual(
-            awsNegotiateEncoding(
-                {'user-agent': [{'key': 'User-Agent', 'value': 'Firefox'}]},
-                [VT('gzip', {q: 0.5}), VT('br', {q: 1}), VT('identity', {q: 0.1})]),
-            VT('br', {q: 1}, 1));
-    });
-    it('should assume an implicit identity;q=1 value', () => {
-        deepStrictEqual(
-            awsNegotiateEncoding(
-                {'accept-encoding':
-                    [{'key': 'Accept-Encoding', 'value': 'gzip;q=0.5'}]},
-                [VT('identity', {q: 1}), VT('gzip', {q: 1})]),
-            VT('identity', {q: 1}, 1));
-    });
-    it('should allow implicit identity value to be overridden explicitly', () => {
-        deepStrictEqual(
-            awsNegotiateEncoding(
-                {'accept-encoding':
-                    [{'key': 'Accept-Encoding', 'value': 'gzip;q=0.5, identity;q=0'}]},
-                [VT('identity', {q: 1}), VT('gzip', {q: 1})]),
-            VT('gzip', {q: 1}, 0.5));
-    });
-    it('should allow implicit identity value to be overridden by wildcard', () => {
-        deepStrictEqual(
-            awsNegotiateEncoding(
-                {'accept-encoding':
-                    [{'key': 'Accept-Encoding', 'value': 'gzip;q=0.5, *;q=0'}]},
-                [VT('identity', {q: 1}), VT('gzip', {q: 1})]),
-            VT('gzip', {q: 1}, 0.5));
-    });
-});
-
-describe('awsNegotiateType', () => {
-    it('should return the best server value if no Accept found', () => {
-        deepStrictEqual(
-            awsNegotiateType(
-                {'user-agent': [{'key': 'User-Agent', 'value': 'Firefox'}]},
-                [VT('image/webp', {q: 1}), VT('image/jpeg', {q: 0.9})]),
-            VT('image/webp', {q: 1}, 1));
-    });
-    it('should prefer a more specific match', () => {
-        deepStrictEqual(
-            awsNegotiateType(
-                {'accept': [{'key': 'Accept', 'value': 'image/webp, image/*;q=0.8'}]},
-                [VT('image/webp', {q: 1.0}), VT('image/jpeg', {q: 0.9})]),
-            VT('image/webp', {q: 1}, 1));
-    });
-    it('should fall back to wildard match', () => {
-        deepStrictEqual(
-            awsNegotiateType(
-                {'accept': [{'key': 'Accept', 'value': 'image/webp, image/*;q=0.8'}]},
-                [VT('image/bmp', {q: 0.8}), VT('image/jpeg', {q: 0.9})]),
-            VT('image/jpeg', {q: 0.9}, 0.8 * 0.9));
-    });
-    it('should consider full wildcard as having default q=0.01', () => {
-        deepStrictEqual(
-            awsNegotiateType(
-                {'accept': [{'key': 'Accept', 'value': 'text/plain, */*'}]},
-                [VT('text/plain', {q: 0.001}), VT('text/html')]),
-            VT('text/html', {}, 0.01));
-    });
-    it('should consider subtype wildcard as having default q=0.02', () => {
-        deepStrictEqual(
-            awsNegotiateType(
-                {'accept': [{'key': 'Accept', 'value': 'text/plain, text/*'}]},
-                [VT('text/plain', {q: 0.001}), VT('text/html')]),
-            VT('text/html', {}, 0.02));
-    });
-    it('should not override explicitly-specified wildcard qvalue', () => {
-        deepStrictEqual(
-            awsNegotiateType(
-                {'accept': [{'key': 'Accept', 'value': 'text/plain, */*;q=1'}]},
-                [VT('text/plain', {q: 0.001}), VT('text/html')]),
-            VT('text/html', {}, 1));
     });
 });

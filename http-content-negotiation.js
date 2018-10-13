@@ -244,10 +244,12 @@ const parseValueTuple = (v) => {
 exports.parseValueTuple = parseValueTuple;
 
 /*
- * Perform content negotiation.
+ * Perform generic content negotiation.
  *
  * Given sorted arrays of supported (value name, q-value) tuples, select a
  * value that is mutuaully acceptable. Returns null is nothing could be found.
+ * 
+ * Typical applications should not call this directly.
  */
 const performNegotiation = (clientValues, serverValues, matcher, comparator) => {
     var scores = [];
@@ -286,31 +288,23 @@ const performNegotiation = (clientValues, serverValues, matcher, comparator) => 
 exports.performNegotiation = performNegotiation;
 
 /*
- * Split headers from AWS input.
- * 
- * This differs from splitHeaderValue in that it accepts AWS header object as
- * input and handles merging multiple instances of a single header.
- */
-const awsSplitHeaderValue = (headers) => {
-    return headers.map((ho) => { return ho['value']; })
-        .reduce((a, v) => { return a.concat(splitHeaderValue(v)); }, []);
-};
-exports.awsSplitHeaderValue = awsSplitHeaderValue;
-
-/*
  * Perform content negotiation based on the Accept-Encoding input header.
  * 
  * This is a high-level wrapper around the rest of the functions in this file.
- * Applications should probably just use this directly.
+ * Call this after converting the input Accept-Encoding header (if any) to an
+ * array of ValueTuples. This array should be empty if no Accept-Encoding
+ * header could be found.
+ * 
+ * Typical applications should not call this directly.
  */
-const awsNegotiateEncoding = (headers, serverValues) => {
+const performEncodingNegotiation = (clientValues, serverValues) => {
     const IDENTITY = new ValueTuple('identity', new Map([['q', 1]]));
 
     /* 
-     * No Accept-Encoding header means the client will accept anything. Pick the
+     * No client values at all means the client will accept anything. Pick the
      * highest-scoring server value and go with that.
      */
-    if (!('accept-encoding' in headers)) {
+    if (clientValues.length === 0) {
         let sv = Array
             .from(serverValues)
             .sort((a, b) => { return a.q - b.q; })
@@ -318,10 +312,6 @@ const awsNegotiateEncoding = (headers, serverValues) => {
         sv.score = sv.q;
         return sv;
     }
-
-    /* Parse values and attributes */
-    var parsedValues = awsSplitHeaderValue(headers['accept-encoding'])
-        .map(parseValueTuple);
 
     /* 
      * If no parsed values match 'identity' (i.e. it has not been overridden)
@@ -337,12 +327,12 @@ const awsNegotiateEncoding = (headers, serverValues) => {
      *      the absolute last option which feels like it's really the intent of the
      *      RFC.
      */
-    if (!parsedValues.some((v) => { return wildcardValueMatch(IDENTITY, v); })) {
-        parsedValues.unshift(IDENTITY);
+    if (!clientValues.some((v) => { return wildcardValueMatch(IDENTITY, v); })) {
+        clientValues.unshift(IDENTITY);
     }
 
     const sv = performNegotiation(
-        parsedValues,
+        clientValues,
         serverValues,
         wildcardValueMatch,
         wildcardValueCompare);
@@ -352,20 +342,22 @@ const awsNegotiateEncoding = (headers, serverValues) => {
 
     return sv;
 };
-exports.awsNegotiateEncoding = awsNegotiateEncoding;
-
+exports.performEncodingNegotiation = performEncodingNegotiation;
 /*
  * Perform content negotiation based on the Accept input header.
  * 
  * This is a high-level wrapper around the rest of the functions in this file.
- * Applications should probably just use this directly.
+ * Call this after converting the input Accept header (if any) to an array of
+ * ValueTuples. This array should be empty if no Accept header could be found.
+ * 
+ * Typical applications should not call this directly.
  */
-const awsNegotiateType = (headers, serverValues) => {
+const performTypeNegotiation = (clientValues, serverValues) => {
     /* 
-     * No Accept header means the client will accept anything. Pick the
+     * No client values at all means the client will accept anything. Pick the
      * highest-scoring server value and go with that.
      */
-    if (!('accept' in headers)) {
+    if (clientValues.length === 0) {
         let sv = Array
             .from(serverValues)
             .sort((a, b) => { return a.q - b.q; })
@@ -382,24 +374,22 @@ const awsNegotiateType = (headers, serverValues) => {
      * and default to small qvalues for wildcards that do not have one
      * explicitly specified.
      */
-    var parsedValues = awsSplitHeaderValue(headers['accept'])
-        .map(parseValueTuple)
-        .map((vt) => {
-            if (vt.properties.has('q')) {
-                return vt;
-            }
-
-            const [type, subtype] = vt.value.split('/');
-            if (type !== '*' && subtype !== '*') {
-                return vt;
-            }
-
-            vt.properties.set('q', (type === '*') ? 0.01 : 0.02);
+    const mungedClientValues = clientValues.map((vt) => {
+        if (vt.properties.has('q')) {
             return vt;
-        });
+        }
+
+        const [type, subtype] = vt.value.split('/');
+        if (type !== '*' && subtype !== '*') {
+            return vt;
+        }
+
+        vt.properties.set('q', (type === '*') ? 0.01 : 0.02);
+        return vt;
+    });
 
     const sv = performNegotiation(
-        parsedValues,
+        mungedClientValues,
         serverValues,
         mediaRangeValueMatch,
         mediaRangeValueCompare);
@@ -409,4 +399,42 @@ const awsNegotiateType = (headers, serverValues) => {
 
     return sv;
 };
-exports.awsNegotiateType = awsNegotiateType;
+exports.performTypeNegotiation = performTypeNegotiation;
+
+/*
+ * Split headers from AWS input.
+ * 
+ * This differs from splitHeaderValue in that it accepts AWS header object as
+ * input and handles merging multiple instances of a single header.
+ */
+const awsSplitHeaderValue = (headers) => {
+    return headers.map((ho) => { return ho['value']; })
+        .reduce((a, v) => { return a.concat(splitHeaderValue(v)); }, []);
+};
+exports.awsSplitHeaderValue = awsSplitHeaderValue;
+
+/*
+ * AWS wrapper around performEncodingNegotiation().
+ */
+const awsPerformEncodingNegotiation = (headers, serverValues) => {
+    return performEncodingNegotiation(
+        ('accept-encoding' in headers) ?
+            awsSplitHeaderValue(headers['accept-encoding'])
+                .map(parseValueTuple) :
+            [],
+        serverValues);
+};
+exports.awsPerformEncodingNegotiation = awsPerformEncodingNegotiation;
+
+/*
+ * AWS wrapper around performTypeNegotiation().
+ */
+const awsPerformTypeNegotiation = (headers, serverValues) => {
+    return performTypeNegotiation(
+        ('accept' in headers) ?
+            awsSplitHeaderValue(headers['accept'])
+                .map(parseValueTuple) :
+            [],
+        serverValues);
+};
+exports.awsPerformTypeNegotiation = awsPerformTypeNegotiation;
