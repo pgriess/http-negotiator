@@ -17,14 +17,18 @@ const EMPTY_MAP = new Map();
  *      ValueTuple{ value: 'gzip', properties: Map{ 'q' => 0.1 } }
  *  ],
  * 
- * In addition, the 'q' property has special semantics -- we provide a
- * convenice attribute for accessing this directly, returning the default value
- * of 1 if it is un-specified.
+ * The 'q' parameter has special semantics -- we provide a convenice property
+ * for accessing this directly, returning the default value of 1 if it is
+ * un-specified.
+ * 
+ * Finally, there is a 'score' property. This is undefined by default, but it
+ * can be used by the negotiation process to indicate the score of a given choice.
  */
 const ValueTuple = class {
-    constructor(value, properties) {
+    constructor(value, properties, score) {
         this.value = value;
         this.properties = properties;
+        this.score = score;
     }
 
     get q() {
@@ -266,14 +270,18 @@ const performNegotiation = (clientValues, serverValues, matcher, comparator) => 
         /*
          * Note that we push the server value here as it's expected not to be a wildcard
          */
-        scores.push([sv, score]);
+        scores.push(
+            new ValueTuple(
+                sv.value,
+                new Map(sv.properties),
+                score));
     });
 
     if (scores.length === 0) {
         return null;
     }
 
-    return scores.sort((a, b) => { return b[1] - a[1]; })[0][0];
+    return scores.sort((a, b) => { return b.score - a.score; })[0];
 };
 exports.performNegotiation = performNegotiation;
 
@@ -303,10 +311,12 @@ const awsNegotiateEncoding = (headers, serverValues) => {
      * highest-scoring server value and go with that.
      */
     if (!('accept-encoding' in headers)) {
-        return Array
+        let sv = Array
             .from(serverValues)
             .sort((a, b) => { return a.q - b.q; })
-            .pop().value;
+            .pop();
+        sv.score = sv.q;
+        return sv;
     }
 
     /* Parse values and attributes */
@@ -340,7 +350,7 @@ const awsNegotiateEncoding = (headers, serverValues) => {
         return sv;
     }
 
-    return sv.value;
+    return sv;
 };
 exports.awsNegotiateEncoding = awsNegotiateEncoding;
 
@@ -356,14 +366,37 @@ const awsNegotiateType = (headers, serverValues) => {
      * highest-scoring server value and go with that.
      */
     if (!('accept' in headers)) {
-        return Array
+        let sv = Array
             .from(serverValues)
             .sort((a, b) => { return a.q - b.q; })
-            .pop().value;
+            .pop();
+        sv.score = sv.q;
+        return sv;
     }
 
-    /* Parse values and attributes */
-    var parsedValues = awsSplitHeaderValue(headers['accept']).map(parseValueTuple);
+    /* 
+     * Parse values and attributes
+     * 
+     * Here, we adopt some heuritics from
+     * https://httpd.apache.org/docs/current/content-negotiation.html#better
+     * and default to small qvalues for wildcards that do not have one
+     * explicitly specified.
+     */
+    var parsedValues = awsSplitHeaderValue(headers['accept'])
+        .map(parseValueTuple)
+        .map((vt) => {
+            if (vt.properties.has('q')) {
+                return vt;
+            }
+
+            const [type, subtype] = vt.value.split('/');
+            if (type !== '*' && subtype !== '*') {
+                return vt;
+            }
+
+            vt.properties.set('q', (type === '*') ? 0.01 : 0.02);
+            return vt;
+        });
 
     const sv = performNegotiation(
         parsedValues,
@@ -374,6 +407,6 @@ const awsNegotiateType = (headers, serverValues) => {
         return sv;
     }
 
-    return sv.value;
+    return sv;
 };
 exports.awsNegotiateType = awsNegotiateType;
