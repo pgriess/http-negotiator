@@ -221,7 +221,7 @@ exports.splitHeaderValue = splitHeaderValue;
  * through as un-interpted strings, 'q' will be run through parseFloat().
  */
 const parseValueTuple = (v) => {
-    var params = new Map();
+    let params = new Map();
 
     const s = v.split(';');
     if (s.length > 0) {
@@ -252,7 +252,7 @@ exports.parseValueTuple = parseValueTuple;
  * Typical applications should not call this directly.
  */
 const performNegotiation = (clientValues, serverValues, matcher, comparator) => {
-    var scores = [];
+    let scores = [];
     serverValues.forEach((sv) => {
         /* Get all server values that match the given client value */
         const matchingCv = clientValues.filter((cv) => { return matcher(sv, cv); });
