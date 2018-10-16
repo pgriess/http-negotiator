@@ -343,6 +343,7 @@ const performEncodingNegotiation = (clientValues, serverValues) => {
     return sv;
 };
 exports.performEncodingNegotiation = performEncodingNegotiation;
+
 /*
  * Perform content negotiation based on the Accept input header.
  * 
@@ -374,7 +375,7 @@ const performTypeNegotiation = (clientValues, serverValues) => {
      * and default to small qvalues for wildcards that do not have one
      * explicitly specified.
      */
-    const mungedClientValues = clientValues.map((vt) => {
+    clientValues = clientValues.map((vt) => {
         if (vt.properties.has('q')) {
             return vt;
         }
@@ -389,7 +390,7 @@ const performTypeNegotiation = (clientValues, serverValues) => {
     });
 
     const sv = performNegotiation(
-        mungedClientValues,
+        clientValues,
         serverValues,
         mediaRangeValueMatch,
         mediaRangeValueCompare);
