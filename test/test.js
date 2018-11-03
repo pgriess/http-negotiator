@@ -337,6 +337,13 @@ describe('performTypeNegotiation', () => {
                 [VT('text/plain', {q: 0.001}), VT('text/html')]),
             VT('text/html', {}, 0.02));
     });
+    it('should consider wildcards for low q-values if any q-values have been specified', () => {
+        deepStrictEqual(
+            performTypeNegotiation(
+                [VT('text/plain', {q: 1.0}), VT('*/*')],
+                [VT('text/plain', {q: 0.001}), VT('text/html')]),
+            VT('text/html', {}, 1));
+    });
     it('should not override explicitly-specified wildcard qvalue', () => {
         deepStrictEqual(
             performTypeNegotiation(
