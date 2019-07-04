@@ -254,13 +254,13 @@ exports.parseValueTuple = parseValueTuple;
 const performNegotiation = (clientValues, serverValues, matcher, comparator) => {
     let scores = [];
     serverValues.forEach((sv) => {
-        /* Get all server values that match the given client value */
+        /* Get all client values that match the given server value */
         const matchingCv = clientValues.filter((cv) => { return matcher(sv, cv); });
         if (matchingCv.length === 0) {
             return;
         }
 
-        /* Pick the most specific client value for the current server value */
+        /* Pick the most specific client value */
         const cv = matchingCv
             .sort((a, b) => { return comparator(sv, a, b); })[0];
 
@@ -269,9 +269,7 @@ const performNegotiation = (clientValues, serverValues, matcher, comparator) => 
             return;
         }
 
-        /*
-         * Note that we push the server value here as it's expected not to be a wildcard
-         */
+        /* Push the server value here as it's expected not to be a wildcard */
         scores.push(
             new ValueTuple(
                 sv.value,
