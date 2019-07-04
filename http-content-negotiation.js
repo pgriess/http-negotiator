@@ -331,16 +331,11 @@ const performEncodingNegotiation = (clientValues, serverValues) => {
         clientValues.unshift(IDENTITY);
     }
 
-    const sv = performNegotiation(
+    return performNegotiation(
         clientValues,
         serverValues,
         wildcardValueMatch,
         wildcardValueCompare);
-    if (!sv) {
-        return sv;
-    }
-
-    return sv;
 };
 exports.performEncodingNegotiation = performEncodingNegotiation;
 
@@ -392,16 +387,11 @@ const performTypeNegotiation = (clientValues, serverValues) => {
         });
     }
 
-    const sv = performNegotiation(
+    return performNegotiation(
         clientValues,
         serverValues,
         mediaRangeValueMatch,
         mediaRangeValueCompare);
-    if (!sv) {
-        return sv;
-    }
-
-    return sv;
 };
 exports.performTypeNegotiation = performTypeNegotiation;
 
