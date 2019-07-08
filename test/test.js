@@ -349,19 +349,25 @@ describe('performTypeNegotiation', () => {
     });
     it('should consider full wildcard as having default q=0.01', () => {
         const cv = [VT('text/plain'), VT('*/*')];
-        const sv = [VT('text/plain', {q: 0.001}), VT('text/html')];
 
-        deepStrictEqual(performTypeNegotiation(cv, sv), sv[1]);
+        const sv0 = [VT('text/plain', {q: 0.011}), VT('text/html')];
+        deepStrictEqual(performTypeNegotiation(cv, sv0), sv0[0]);
+
+        const sv1 = [VT('text/plain', {q: 0.009}), VT('text/html')];
+        deepStrictEqual(performTypeNegotiation(cv, sv1), sv1[1]);
     });
     it('should consider subtype wildcard as having default q=0.02', () => {
         const cv = [VT('text/plain'), VT('text/*')];
-        const sv = [VT('text/plain', {q: 0.001}), VT('text/html')];
 
-        deepStrictEqual(performTypeNegotiation(cv, sv), sv[1]);
+        const sv0 = [VT('text/plain', {q: 0.021}), VT('text/html')];
+        deepStrictEqual(performTypeNegotiation(cv, sv0), sv0[0]);
+
+        const sv1 = [VT('text/plain', {q: 0.019}), VT('text/html')];
+        deepStrictEqual(performTypeNegotiation(cv, sv1), sv1[1]);
     });
     it('should consider wildcards for low q-values if any q-values have been specified', () => {
         const cv = [VT('text/plain', {q: 1.0}), VT('*/*')];
-        const sv = [VT('text/plain', {q: 0.001}), VT('text/html')];
+        const sv = [VT('text/plain', {q: 0.9}), VT('text/html')];
 
         deepStrictEqual(performTypeNegotiation(cv, sv), sv[1]);
     });

@@ -351,8 +351,9 @@ const performTypeNegotiation = (clientValues, serverValues) => {
      * explicitly specified. We only do this if no q-values have been
      * specified at all.
      */
+    let comparator = mediaRangeValueCompare;
     if (!clientValues.some((vt) => { return vt.properties.has('q'); })) {
-        clientValues = clientValues.map((vt) => {
+        let transform = (vt) => {
             if (vt.properties.has('q')) {
                 return vt;
             }
@@ -362,16 +363,21 @@ const performTypeNegotiation = (clientValues, serverValues) => {
                 return vt;
             }
 
-            vt.properties.set('q', (type === '*') ? 0.01 : 0.02);
-            return vt;
-        });
+            let props = vt.properties;
+            props.set('q', (type === '*') ? 0.01 : 0.02);
+
+            return new ValueTuple(vt.value, props);
+        };
+        comparator = (st, at, bt) => {
+            return mediaRangeValueCompare(st, transform(at), transform(bt));
+        };
     }
 
     const negotiatedValues = performNegotiation(
         clientValues,
         serverValues,
         mediaRangeValueMatch,
-        mediaRangeValueCompare);
+        comparator);
 
     return (negotiatedValues.length == 0) ? null : negotiatedValues[0].server;
 };
