@@ -20,15 +20,11 @@ const EMPTY_MAP = new Map();
  * The 'q' parameter has special semantics -- we provide a convenice property
  * for accessing this directly, returning the default value of 1 if it is
  * un-specified.
- *
- * Finally, there is a 'score' property. This is undefined by default, but it
- * can be used by the negotiation process to indicate the score of a given choice.
  */
 const ValueTuple = class {
-    constructor(value, properties, score) {
+    constructor(value, properties) {
         this.value = value;
         this.properties = properties || new Map();
-        this.score = score;
     }
 
     get q() {
@@ -271,11 +267,7 @@ const performNegotiation = (clientValues, serverValues, matcher, comparator) => 
         }
 
         /* Push the server value here as it's expected not to be a wildcard */
-        scores.push(
-            new ValueTuple(
-                sv.value,
-                new Map(sv.properties),
-                score));
+        scores.push({ server: sv, client: cv, score: score });
     });
 
     return scores.sort((a, b) => { return b.score - a.score; });
@@ -332,7 +324,7 @@ const performEncodingNegotiation = (clientValues, serverValues) => {
         wildcardValueMatch,
         wildcardValueCompare);
 
-    return (negotiatedValues.length == 0) ? null : negotiatedValues[0];
+    return (negotiatedValues.length == 0) ? null : negotiatedValues[0].server;
 };
 exports.performEncodingNegotiation = performEncodingNegotiation;
 
@@ -381,7 +373,7 @@ const performTypeNegotiation = (clientValues, serverValues) => {
         mediaRangeValueMatch,
         mediaRangeValueCompare);
 
-    return (negotiatedValues.length == 0) ? null : negotiatedValues[0];
+    return (negotiatedValues.length == 0) ? null : negotiatedValues[0].server;
 };
 exports.performTypeNegotiation = performTypeNegotiation;
 

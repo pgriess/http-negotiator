@@ -34,6 +34,13 @@ const VT = (value, object, score) => {
     return new ValueTuple(value, VP(object), score);
 };
 
+/*
+ * Helper to create a negotiation result returned from performNegotiation().
+ */
+const NR = (sv, cv, score) => {
+    return { server: sv, client: cv, score: score };
+}
+
 describe('splitHeaderValue()', () => {
     it('should split a simple single header', () => {
         deepStrictEqual(splitHeaderValue('a, b, c'), ['a', 'b', 'c']);
@@ -72,76 +79,100 @@ describe('parseValueTuple()', () => {
 
 describe('performNegotiation()', () => {
     it('should select the common value', () => {
+        const cv = [VT('a', {q: 1}), VT('b', {q: 1}), VT('c', {q: 1})];
+        const sv = [VT('c', {q: 1}), VT('z', {q: 1})];
+
         deepStrictEqual(
             performNegotiation(
-                [VT('a', {q: 1}), VT('b', {q: 1}), VT('c', {q: 1})],
-                [VT('c', {q: 1}), VT('z', {q: 1})],
+                cv,
+                sv,
                 wildcardValueMatch,
                 wildcardValueCompare),
-            [VT('c', {q: 1}, 1)]);
+            [NR(sv[0], cv[2], 1)]);
     });
     it('should fail if there are no common values', () => {
+        const cv = [VT('a', {q: 1}), VT('b', {q: 1}), VT('c', {q: 1})];
+        const sv = [VT('z', {q: 1})];
+
         deepStrictEqual(
             performNegotiation(
-                [VT('a', {q: 1}), VT('b', {q: 1}), VT('c', {q: 1})],
-                [VT('z', {q: 1})],
+                cv,
+                sv,
                 wildcardValueMatch,
                 wildcardValueCompare),
             []);
     });
     it('should take client weights into account', () => {
+        const cv = [VT('a', {q: 1}), VT('b', {q: 1}), VT('c', {q: 0.8})];
+        const sv = [VT('b', {q: 0.9}), VT('c', {q: 1})];
+
         deepStrictEqual(
             performNegotiation(
-                [VT('a', {q: 1}), VT('b', {q: 1}), VT('c', {q: 0.8})],
-                [VT('b', {q: 0.9}), VT('c', {q: 1})],
+                cv,
+                sv,
                 wildcardValueMatch,
                 wildcardValueCompare),
-            [VT('b', {q: 0.9}, 0.9), VT('c', {q: 1}, 0.8)]);
+            [NR(sv[0], cv[1], 0.9), NR(sv[1], cv[2], 0.8)]);
     });
     it('should take server weights into account', () => {
+        const cv = [VT('a', {q: 1}), VT('b', {q: 1}), VT('c', {q: 1})];
+        const sv = [VT('b', {q: 0.9}), VT('c', {q: 1})];
+
         deepStrictEqual(
             performNegotiation(
-                [VT('a', {q: 1}), VT('b', {q: 1}), VT('c', {q: 1})],
-                [VT('b', {q: 0.9}), VT('c', {q: 1})],
+                cv,
+                sv,
                 wildcardValueMatch,
                 wildcardValueCompare),
-            [VT('c', {q: 1}, 1), VT('b', {q: 0.9}, 0.9)]);
+            [NR(sv[1], cv[2], 1), NR(sv[0], cv[1], 0.9)]);
     });
     it('should consider 0-weights as a non-match', () => {
+        const cv = [VT('a', {q: 1})];
+        const sv = [VT('a', {q: 0})];
+
         deepStrictEqual(
             performNegotiation(
-                [VT('a', {q: 1})],
-                [VT('a', {q: 0})],
+                cv,
+                sv,
                 wildcardValueMatch,
                 wildcardValueCompare),
             []);
     });
     it('should support wildcard matching', () => {
+        const cv = [VT('a', {q: 1}), VT('*', {q: 0.5})];
+        const sv = [VT('a', {q: 0.25}), VT('b', {q: 1})];
+
         deepStrictEqual(
             performNegotiation(
-                [VT('a', {q: 1}), VT('*', {q: 0.5})],
-                [VT('a', {q: 0.25}), VT('b', {q: 1})],
+                cv,
+                sv,
                 wildcardValueMatch,
                 wildcardValueCompare),
-            [VT('b', {q: 1}, 0.5), VT('a', {q: 0.25}, 0.25)]);
+            [NR(sv[1], cv[1], 0.5), NR(sv[0], cv[0], 0.25)]);
     });
     it('should not apply wildcard to earlier values', () => {
+        const cv = [VT('a', {q: 1}), VT('*', {q: 0.5})];
+        const sv = [VT('a', {q: 0.8}), VT('b', {q: 1})];
+
         deepStrictEqual(
             performNegotiation(
-                [VT('a', {q: 1}), VT('*', {q: 0.5})],
-                [VT('a', {q: 0.8}), VT('b', {q: 1})],
+                cv,
+                sv,
                 wildcardValueMatch,
                 wildcardValueCompare),
-            [VT('a', {q: 0.8}, 0.8), VT('b', {q: 1}, 0.5)]);
+            [NR(sv[0], cv[0], 0.8), NR(sv[1], cv[1], 0.5)]);
     });
     it('should pass server parameters through to negotiated result', () => {
+        const cv = [VT('a'), VT('b'), VT('*', {q: 0.5})];
+        const sv = [VT('a', {q: 0.8}), VT('b', {z: 'yabba'})];
+
         deepStrictEqual(
             performNegotiation(
-                [VT('a'), VT('b'), VT('*', {q: 0.5})],
-                [VT('a', {q: 0.8}), VT('b', {z: 'yabba'})],
+                cv,
+                sv,
                 wildcardValueMatch,
                 wildcardValueCompare),
-            [VT('b', {z: 'yabba'}, 1), VT('a', {q: 0.8}, 0.8)]);
+            [NR(sv[1], cv[1], 1), NR(sv[0], cv[0], 0.8)]);
     });
 });
 
@@ -272,84 +303,73 @@ describe('mediaRangeValueCompare()', () => {
 
 describe('performEncodingNegotiation', () => {
     it('should return the best server value if no Accept-Encoding found', () => {
-        deepStrictEqual(
-            performEncodingNegotiation(
-                [],
-                [VT('gzip', {q: 0.5}), VT('br', {q: 1}), VT('identity', {q: 0.1})]),
-            VT('br', {q: 1}, 1));
+        const cv = [];
+        const sv = [VT('gzip', {q: 0.5}), VT('br', {q: 1}), VT('identity', {q: 0.1})];
+
+        deepStrictEqual(performEncodingNegotiation(cv, sv), sv[1]);
     });
     it('should assume an implicit identity;q=1 value', () => {
-        deepStrictEqual(
-            performEncodingNegotiation(
-                [VT('gzip', {q: 0.5})],
-                [VT('identity', {q: 1}), VT('gzip', {q: 1})]),
-            VT('identity', {q: 1}, 1));
+        const cv = [VT('gzip', {q: 0.5})];
+        const sv = [VT('identity', {q: 1}), VT('gzip', {q: 1})];
+
+        deepStrictEqual(performEncodingNegotiation(cv, sv), sv[0]);
     });
     it('should allow implicit identity value to be overridden explicitly', () => {
-        deepStrictEqual(
-            performEncodingNegotiation(
-                [VT('gzip', {q: 0.5}), VT('identity', {q: 0})],
-                [VT('identity', {q: 1}), VT('gzip', {q: 1})]),
-            VT('gzip', {q: 1}, 0.5));
+        const cv = [VT('gzip', {q: 0.5}), VT('identity', {q: 0})];
+        const sv = [VT('identity', {q: 1}), VT('gzip', {q: 1})];
+
+        deepStrictEqual(performEncodingNegotiation(cv, sv), sv[1]);
     });
     it('should allow implicit identity value to be overridden by wildcard', () => {
-        deepStrictEqual(
-            performEncodingNegotiation(
-                [VT('gzip', {q: 0.5}), VT('*', {q: 0})],
-                [VT('identity', {q: 1}), VT('gzip', {q: 1})]),
-            VT('gzip', {q: 1}, 0.5));
+        const cv = [VT('gzip', {q: 0.5}), VT('*', {q: 0})];
+        const sv = [VT('identity', {q: 1}), VT('gzip', {q: 1})];
+
+        deepStrictEqual(performEncodingNegotiation(cv, sv), sv[1]);
     });
 });
 
 describe('performTypeNegotiation', () => {
     it('should return the best server value if no Accept found', () => {
-        deepStrictEqual(
-            performTypeNegotiation(
-                [],
-                [VT('image/webp', {q: 1}), VT('image/jpeg', {q: 0.9})]),
-            VT('image/webp', {q: 1}, 0.01));
+        const cv = [];
+        const sv = [VT('image/webp', {q: 1}), VT('image/jpeg', {q: 0.9})];
+
+        deepStrictEqual(performTypeNegotiation(cv, sv), sv[0]);
     });
     it('should prefer a more specific match', () => {
-        deepStrictEqual(
-            performTypeNegotiation(
-                [VT('image/webp'), VT('image/*', {q: 0.8})],
-                [VT('image/webp', {q: 1.0}), VT('image/jpeg', {q: 0.9})]),
-            VT('image/webp', {q: 1}, 1));
+        const cv = [VT('image/webp'), VT('image/*', {q: 0.8})];
+        const sv = [VT('image/webp', {q: 1.0}), VT('image/jpeg', {q: 0.9})];
+
+        deepStrictEqual(performTypeNegotiation(cv, sv), sv[0]);
     });
     it('should fall back to wildard match', () => {
-        deepStrictEqual(
-            performTypeNegotiation(
-                [VT('image/webp'), VT('image/*', {q: 0.8})],
-                [VT('image/bmp', {q: 0.8}), VT('image/jpeg', {q: 0.9})]),
-            VT('image/jpeg', {q: 0.9}, 0.8 * 0.9));
+        const cv = [VT('image/webp'), VT('image/*', {q: 0.8})];
+        const sv = [VT('image/bmp', {q: 0.8}), VT('image/jpeg', {q: 0.9})];
+
+        deepStrictEqual(performTypeNegotiation(cv, sv), sv[1]);
     });
     it('should consider full wildcard as having default q=0.01', () => {
-        deepStrictEqual(
-            performTypeNegotiation(
-                [VT('text/plain'), VT('*/*')],
-                [VT('text/plain', {q: 0.001}), VT('text/html')]),
-            VT('text/html', {}, 0.01));
+        const cv = [VT('text/plain'), VT('*/*')];
+        const sv = [VT('text/plain', {q: 0.001}), VT('text/html')];
+
+        deepStrictEqual(performTypeNegotiation(cv, sv), sv[1]);
     });
     it('should consider subtype wildcard as having default q=0.02', () => {
-        deepStrictEqual(
-            performTypeNegotiation(
-                [VT('text/plain'), VT('text/*')],
-                [VT('text/plain', {q: 0.001}), VT('text/html')]),
-            VT('text/html', {}, 0.02));
+        const cv = [VT('text/plain'), VT('text/*')];
+        const sv = [VT('text/plain', {q: 0.001}), VT('text/html')];
+
+        deepStrictEqual(performTypeNegotiation(cv, sv), sv[1]);
     });
     it('should consider wildcards for low q-values if any q-values have been specified', () => {
-        deepStrictEqual(
-            performTypeNegotiation(
-                [VT('text/plain', {q: 1.0}), VT('*/*')],
-                [VT('text/plain', {q: 0.001}), VT('text/html')]),
-            VT('text/html', {}, 1));
+        const cv = [VT('text/plain', {q: 1.0}), VT('*/*')];
+        const sv = [VT('text/plain', {q: 0.001}), VT('text/html')];
+
+        deepStrictEqual(performTypeNegotiation(cv, sv), sv[1]);
     });
     it('should not override explicitly-specified wildcard qvalue', () => {
-        deepStrictEqual(
-            performTypeNegotiation(
-                [VT('text/plain'), VT('*/*', {q: 1})],
-                [VT('text/plain', {q: 0.001}), VT('text/html')]),
-            VT('text/html', {}, 1));
+        const cv = [VT('text/plain'), VT('*/*', {q: 1})];
+        const sv = [VT('text/plain', {q: 0.001}), VT('text/html')];
+
+        deepStrictEqual(performTypeNegotiation(cv, sv), sv[1]);
     });
 });
 
