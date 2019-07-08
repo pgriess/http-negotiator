@@ -27,7 +27,7 @@ const EMPTY_MAP = new Map();
 const ValueTuple = class {
     constructor(value, properties, score) {
         this.value = value;
-        this.properties = properties;
+        this.properties = properties || new Map();
         this.score = score;
     }
 
