@@ -347,17 +347,8 @@ exports.performEncodingNegotiation = performEncodingNegotiation;
  * Typical applications should not call this directly.
  */
 const performTypeNegotiation = (clientValues, serverValues) => {
-    /*
-     * No client values at all means the client will accept anything. Pick the
-     * highest-scoring server value and go with that.
-     */
     if (clientValues.length === 0) {
-        let sv = Array
-            .from(serverValues)
-            .sort((a, b) => { return a.q - b.q; })
-            .pop();
-        sv.score = sv.q;
-        return sv;
+        clientValues = [new ValueTuple('*/*')];
     }
 
     /*

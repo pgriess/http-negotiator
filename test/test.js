@@ -307,7 +307,7 @@ describe('performTypeNegotiation', () => {
             performTypeNegotiation(
                 [],
                 [VT('image/webp', {q: 1}), VT('image/jpeg', {q: 0.9})]),
-            VT('image/webp', {q: 1}, 1));
+            VT('image/webp', {q: 1}, 0.01));
     });
     it('should prefer a more specific match', () => {
         deepStrictEqual(
