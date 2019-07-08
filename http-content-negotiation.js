@@ -337,7 +337,7 @@ exports.performEncodingNegotiation = performEncodingNegotiation;
  *
  * Typical applications should not call this directly.
  */
-const performTypeNegotiation = (clientValues, serverValues) => {
+const performTypeNegotiation = (clientValues, serverValues, whitelist) => {
     if (clientValues.length === 0) {
         clientValues = [new ValueTuple('*/*')];
     }
@@ -373,11 +373,26 @@ const performTypeNegotiation = (clientValues, serverValues) => {
         };
     }
 
-    const negotiatedValues = performNegotiation(
+    let negotiatedValues = performNegotiation(
         clientValues,
         serverValues,
         mediaRangeValueMatch,
         comparator);
+
+    /*
+     * Filter out any server values that matched client wildcards unless they
+     * are in the whitelist.
+     */
+    if (whitelist) {
+        negotiatedValues = negotiatedValues.filter((nv) => {
+            const [type, subtype] = nv.client.value.split('/');
+            if (type !== '*' && subtype !== '*') {
+                return true;
+            }
+
+            return whitelist.has(nv.server.value)
+        });
+    }
 
     return (negotiatedValues.length == 0) ? null : negotiatedValues[0].server;
 };

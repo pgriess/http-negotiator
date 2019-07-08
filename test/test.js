@@ -377,6 +377,13 @@ describe('performTypeNegotiation', () => {
 
         deepStrictEqual(performTypeNegotiation(cv, sv), sv[1]);
     });
+    it('should apply a type whitelist if specified', () => {
+        const cv = [VT('image/webp'), VT('image/*')];
+        const sv = [VT('image/bmp', {q: 0.8}), VT('image/jpeg', {q: 0.9})];
+
+        deepStrictEqual(performTypeNegotiation(cv, sv, new Set(['image/bmp'])), sv[0]);
+        deepStrictEqual(performTypeNegotiation(cv, sv, new Set()), null);
+    });
 });
 
 describe('awsSplitHeaderValue', () => {
