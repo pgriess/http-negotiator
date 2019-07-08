@@ -78,7 +78,7 @@ describe('performNegotiation()', () => {
                 [VT('c', {q: 1}), VT('z', {q: 1})],
                 wildcardValueMatch,
                 wildcardValueCompare),
-            VT('c', {q: 1}, 1));
+            [VT('c', {q: 1}, 1)]);
     });
     it('should fail if there are no common values', () => {
         deepStrictEqual(
@@ -87,7 +87,7 @@ describe('performNegotiation()', () => {
                 [VT('z', {q: 1})],
                 wildcardValueMatch,
                 wildcardValueCompare),
-            null);
+            []);
     });
     it('should take client weights into account', () => {
         deepStrictEqual(
@@ -96,7 +96,7 @@ describe('performNegotiation()', () => {
                 [VT('b', {q: 0.9}), VT('c', {q: 1})],
                 wildcardValueMatch,
                 wildcardValueCompare),
-            VT('b', {q: 0.9}, 0.9));
+            [VT('b', {q: 0.9}, 0.9), VT('c', {q: 1}, 0.8)]);
     });
     it('should take server weights into account', () => {
         deepStrictEqual(
@@ -105,7 +105,7 @@ describe('performNegotiation()', () => {
                 [VT('b', {q: 0.9}), VT('c', {q: 1})],
                 wildcardValueMatch,
                 wildcardValueCompare),
-            VT('c', {q: 1}, 1));
+            [VT('c', {q: 1}, 1), VT('b', {q: 0.9}, 0.9)]);
     });
     it('should consider 0-weights as a non-match', () => {
         deepStrictEqual(
@@ -114,7 +114,7 @@ describe('performNegotiation()', () => {
                 [VT('a', {q: 0})],
                 wildcardValueMatch,
                 wildcardValueCompare),
-            null);
+            []);
     });
     it('should support wildcard matching', () => {
         deepStrictEqual(
@@ -123,7 +123,7 @@ describe('performNegotiation()', () => {
                 [VT('a', {q: 0.25}), VT('b', {q: 1})],
                 wildcardValueMatch,
                 wildcardValueCompare),
-            VT('b', {q: 1}, 0.5));
+            [VT('b', {q: 1}, 0.5), VT('a', {q: 0.25}, 0.25)]);
     });
     it('should not apply wildcard to earlier values', () => {
         deepStrictEqual(
@@ -132,7 +132,7 @@ describe('performNegotiation()', () => {
                 [VT('a', {q: 0.8}), VT('b', {q: 1})],
                 wildcardValueMatch,
                 wildcardValueCompare),
-            VT('a', {q: 0.8}, 0.8));
+            [VT('a', {q: 0.8}, 0.8), VT('b', {q: 1}, 0.5)]);
     });
     it('should pass server parameters through to negotiated result', () => {
         deepStrictEqual(
@@ -141,7 +141,7 @@ describe('performNegotiation()', () => {
                 [VT('a', {q: 0.8}), VT('b', {z: 'yabba'})],
                 wildcardValueMatch,
                 wildcardValueCompare),
-            VT('b', {z: 'yabba'}, 1));
+            [VT('b', {z: 'yabba'}, 1), VT('a', {q: 0.8}, 0.8)]);
     });
 });
 

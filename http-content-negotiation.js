@@ -246,8 +246,9 @@ exports.parseValueTuple = parseValueTuple;
 /*
  * Perform generic content negotiation.
  *
- * Given sorted arrays of supported (value name, q-value) tuples, select a
- * value that is mutuaully acceptable. Returns null is nothing could be found.
+ * Given sorted arrays of supported (value name, q-value) tuples, determine the
+ * ordered priority list of acceptable tuples. Returns an empty array is
+ * nothing could be found.
  *
  * Typical applications should not call this directly.
  */
@@ -277,11 +278,7 @@ const performNegotiation = (clientValues, serverValues, matcher, comparator) => 
                 score));
     });
 
-    if (scores.length === 0) {
-        return null;
-    }
-
-    return scores.sort((a, b) => { return b.score - a.score; })[0];
+    return scores.sort((a, b) => { return b.score - a.score; });
 };
 exports.performNegotiation = performNegotiation;
 
@@ -329,11 +326,13 @@ const performEncodingNegotiation = (clientValues, serverValues) => {
         clientValues.unshift(IDENTITY);
     }
 
-    return performNegotiation(
+    const negotiatedValues = performNegotiation(
         clientValues,
         serverValues,
         wildcardValueMatch,
         wildcardValueCompare);
+
+    return (negotiatedValues.length == 0) ? null : negotiatedValues[0];
 };
 exports.performEncodingNegotiation = performEncodingNegotiation;
 
@@ -376,11 +375,13 @@ const performTypeNegotiation = (clientValues, serverValues) => {
         });
     }
 
-    return performNegotiation(
+    const negotiatedValues = performNegotiation(
         clientValues,
         serverValues,
         mediaRangeValueMatch,
         mediaRangeValueCompare);
+
+    return (negotiatedValues.length == 0) ? null : negotiatedValues[0];
 };
 exports.performTypeNegotiation = performTypeNegotiation;
 
