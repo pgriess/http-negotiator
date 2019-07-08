@@ -413,25 +413,27 @@ exports.awsSplitHeaderValue = awsSplitHeaderValue;
 /*
  * AWS wrapper around performEncodingNegotiation().
  */
-const awsPerformEncodingNegotiation = (headers, serverValues) => {
+const awsPerformEncodingNegotiation = (headers, serverValues, ...rest) => {
     return performEncodingNegotiation(
         ('accept-encoding' in headers) ?
             awsSplitHeaderValue(headers['accept-encoding'])
                 .map(parseValueTuple) :
             [],
-        serverValues);
+        serverValues,
+        ...rest);
 };
 exports.awsPerformEncodingNegotiation = awsPerformEncodingNegotiation;
 
 /*
  * AWS wrapper around performTypeNegotiation().
  */
-const awsPerformTypeNegotiation = (headers, serverValues) => {
+const awsPerformTypeNegotiation = (headers, serverValues, ...rest) => {
     return performTypeNegotiation(
         ('accept' in headers) ?
             awsSplitHeaderValue(headers['accept'])
                 .map(parseValueTuple) :
             [],
-        serverValues);
+        serverValues,
+        ...rest);
 };
 exports.awsPerformTypeNegotiation = awsPerformTypeNegotiation;

@@ -2,6 +2,7 @@
 
 const {
     awsSplitHeaderValue,
+    awsPerformTypeNegotiation,
     performNegotiation,
     performEncodingNegotiation,
     performTypeNegotiation,
@@ -394,5 +395,20 @@ describe('awsSplitHeaderValue', () => {
                 {'key': 'Accept-Encoding', 'value': 'identity, deflate'}]),
             ['deflate', 'gzip', 'br', 'identity', 'deflate']
         );
+    });
+});
+
+describe('awsPerformTypeNegotiation', () => {
+    it('should pass rest parameters downstream', () => {
+        const sv = [VT('image/bmp', {q: 0.8}), VT('image/jpeg', {q: 0.9})];
+
+        deepStrictEqual(
+            awsPerformTypeNegotiation(
+                {headers: [
+                    {value: 'image/webp'},
+                    {value: 'image/*'}]},
+                sv,
+                new Set(['image/bmp'])),
+            sv[0]);
     });
 });
