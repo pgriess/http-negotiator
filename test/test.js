@@ -15,6 +15,7 @@ const {
     wildcardValueMatch,
     wildcardValueCompare,
     ValueTuple } = require('../http-content-negotiation.js');
+const { TypeMapEntry, parseTypemap } = require('../http-typemap.js');
 const { deepStrictEqual, equal, ok } = require('assert');
 
 /*
@@ -410,5 +411,43 @@ describe('awsPerformTypeNegotiation', () => {
                 sv,
                 new Set(['image/bmp'])),
             sv[0]);
+    });
+});
+
+describe('parseTypemap', () => {
+    it('should parse a simple typemap', () => {
+        const typemapContents = `
+URI: document.html
+
+Content-language: en
+Content-type: text/html
+URI: document.html.en
+
+Content-language: fr
+Content-type: text/html
+URI: document.html.fr
+
+Content-language: de
+Content-type: text/html
+URI: document.html.de
+        `;
+
+        const tm = parseTypemap(typemapContents);
+        equal(tm.length, 4);
+
+        equal(tm[0].uri, 'document.html');
+        deepStrictEqual(tm[0].headers, new Map());
+
+        equal(tm[1].uri, 'document.html.en');
+        deepStrictEqual(
+            tm[1].headers,
+            new Map([
+                ['Content-language', 'en'],
+                ['Content-type', 'text/html']
+            ])
+        );
+
+        equal(tm[2].uri, 'document.html.fr');
+        equal(tm[3].uri, 'document.html.de');
     });
 });
