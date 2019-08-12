@@ -16,7 +16,7 @@ const {
     typemapParse,
     wildcardValueMatch,
     wildcardValueCompare,
-    ValueTuple } = require('../http-content-negotiation.js');
+    ValueTuple } = require('../index.js');
 const { deepStrictEqual, equal, ok } = require('assert');
 
 /*
