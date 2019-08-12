@@ -12,10 +12,11 @@ const {
     mediaRangeValueCompare,
     parameterMatch,
     parameterCompare,
+    TypeMapEntry,
+    typemapParse,
     wildcardValueMatch,
     wildcardValueCompare,
     ValueTuple } = require('../http-content-negotiation.js');
-const { TypeMapEntry, parseTypemap } = require('../http-typemap.js');
 const { deepStrictEqual, equal, ok } = require('assert');
 
 /*
@@ -414,7 +415,7 @@ describe('awsPerformTypeNegotiation', () => {
     });
 });
 
-describe('parseTypemap', () => {
+describe('typemapParse', () => {
     it('should parse a simple typemap', () => {
         const typemapContents = `
 URI: document.html
@@ -432,7 +433,7 @@ Content-type: text/html
 URI: document.html.de
         `;
 
-        const tm = parseTypemap(typemapContents);
+        const tm = typemapParse(typemapContents);
         equal(tm.length, 4);
 
         equal(tm[0].uri, 'document.html');
