@@ -1,0 +1,23 @@
+{
+    "name": "http-content-negotiation",
+    "version": "1.0.0",
+    "author": "Peter Griess <pg@std.in>",
+    "description": "Perform HTTP content negotiation",
+    "files": [
+        "index.js"
+    ],
+    "main": "index.js",
+    "keywords": [
+        "http"
+    ],
+    "homepage": "https://github.com/pgriess/http-content-negotiation-js",
+    "bugs": {
+        "url": "https://github.com/pgriess/http-content-negotiation-js/issues",
+        "email": "pg@std.in"
+    },
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/pgriess/http-content-negotiation-js.git"
+    }
+}
