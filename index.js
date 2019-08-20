@@ -473,8 +473,6 @@ exports.TypeMapEntry = TypeMapEntry;
 /*
  * Parse a string into an array of TypeMapEntry objects.
  *
- * XXX: Normalize case
- * 
  * TODO: What is the order on which we should perform negotiation? Do we prefer
  *       encoding over type, etc? There must be an RFC for this, right?
  * 
@@ -514,8 +512,9 @@ const typemapParse = (str) => {
         }
 
         // XXX: How does this handle malformed lines, e.g. w/o any separator at all
-        const [hn, hv] = l.split(':', 2);
-        if (hn == 'URI') {
+        let [hn, hv] = l.split(':', 2);
+        hn = hn.toLowerCase();
+        if (hn == 'uri') {
             entry.uri = hv.trim();
         } else {
             entry.headers.set(hn, splitHeaderValue(hv).map(parseValueTuple));

@@ -433,16 +433,16 @@ describe('typemapParse', () => {
         const typemapContents = `
 URI: document.html
 
-Content-language: en
-Content-type: text/html
+Content-Language: en
+Content-Type: text/html
 URI: document.html.en
 
-Content-language: fr
-Content-type: text/html
+Content-Language: fr
+Content-Type: text/html
 URI: document.html.fr
 
-Content-language: de
-Content-type: text/html
+Content-Language: de
+Content-Type: text/html
 URI: document.html.de
         `;
 
@@ -456,13 +456,37 @@ URI: document.html.de
         deepStrictEqual(
             tm[1].headers,
             new Map([
-                ['Content-language', [VT('en')]],
-                ['Content-type', [VT('text/html')]],
+                ['content-language', [VT('en')]],
+                ['content-type', [VT('text/html')]],
             ])
         );
 
         equal(tm[2].uri, 'document.html.fr');
         equal(tm[3].uri, 'document.html.de');
+    });
+    it('should normalize header case', () => {
+        const typemapContents = `
+URI: document.html
+
+CONTENT-language: en
+CoNtEnT-tYpE: TEXT/html
+URI: document.HtMl.en
+        `;
+
+        const tm = typemapParse(typemapContents);
+        equal(tm.length, 2);
+
+        equal(tm[0].uri, 'document.html');
+        deepStrictEqual(tm[0].headers, new Map());
+
+        equal(tm[1].uri, 'document.HtMl.en');
+        deepStrictEqual(
+            tm[1].headers,
+            new Map([
+                ['content-language', [VT('en')]],
+                ['content-type', [VT('TEXT/html')]],
+            ])
+        );
     });
 });
 
