@@ -288,8 +288,8 @@ const performEncodingNegotiation = (clientValues, serverValues) => {
     const IDENTITY = new ValueTuple('identity', new Map([['q', 1]]));
 
     /*
-     * No client values at all means the client will accept anything. Pick the
-     * highest-scoring server value and go with that.
+     * From RFC7231 5.3.4, a client value at all means they will accept
+     * anything. Pick the highest-scoring server value and go with that.
      */
     if (clientValues.length === 0) {
         let sv = Array
@@ -299,6 +299,11 @@ const performEncodingNegotiation = (clientValues, serverValues) => {
         sv.score = sv.q;
         return sv;
     }
+
+    /*
+     * TODO: From RFC7231 5.3.4, a client with an empty value indicates that
+     *       they want the ndentity encoding.
+     */
 
     /*
      * If no parsed values match 'identity' (i.e. it has not been overridden)
@@ -338,6 +343,10 @@ exports.performEncodingNegotiation = performEncodingNegotiation;
  * Typical applications should not call this directly.
  */
 const performTypeNegotiation = (clientValues, serverValues, whitelist) => {
+    /*
+     * From RFC7231 5.3.2 -- "A request without any Accept header field implies
+     * that the user agent will accept any media type in response."
+     */
     if (clientValues.length === 0) {
         clientValues = [new ValueTuple('*/*')];
     }
