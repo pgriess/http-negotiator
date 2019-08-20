@@ -506,7 +506,7 @@ const typemapParse = (str) => {
         if (hn == 'URI') {
             entry.uri = hv.trim();
         } else {
-            entry.headers.set(hn, hv.trim());
+            entry.headers.set(hn, splitHeaderValue(hv).map(parseValueTuple));
         }
     }
 

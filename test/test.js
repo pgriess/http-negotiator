@@ -443,8 +443,8 @@ URI: document.html.de
         deepStrictEqual(
             tm[1].headers,
             new Map([
-                ['Content-language', 'en'],
-                ['Content-type', 'text/html']
+                ['Content-language', [VT('en')]],
+                ['Content-type', [VT('text/html')]],
             ])
         );
 
