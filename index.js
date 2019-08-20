@@ -480,17 +480,24 @@ exports.TypeMapEntry = TypeMapEntry;
  *       typemap spec indiciates.
  * 
  * TODO: Write an aws* wrapper for negotiation across all indices.
+ * 
+ * TODO: Drop subsequent instances of the same URI? Return a map?
  */
 const typemapParse = (str) => {
-    // Is this TypeMapEntry valid for accumulating into our list?
-    const entryValid = (tme) => {
-        return tme && tme.uri && tme.uri.length > 0;
-    };
-
     const lines = str.split(/\n/);
 
     let types = [];
     let entry = undefined;
+    let entryBad = false;
+
+    const maybeFlushEntry = () => {
+        if (!entryBad && entry && entry.uri && entry.uri.length > 0) {
+            types.push(entry);
+        }
+
+        entry = undefined;
+        entryBad = false;
+    };
 
     for (let i = 0; i < lines.length; ++i) {
         const l = lines[i].trim();
@@ -502,11 +509,7 @@ const typemapParse = (str) => {
 
         // An empty lines indicates the end of an entry; flush it
         if (l.length == 0) {
-            if (entryValid(entry)) {
-                types.push(entry);
-            }
-
-            entry = undefined;
+            maybeFlushEntry();
             continue;
         }
 
@@ -514,9 +517,15 @@ const typemapParse = (str) => {
             entry = new TypeMapEntry();
         }
 
-        // XXX: How does this handle malformed lines, e.g. w/o any separator at all
-        let [hn, hv] = l.split(':', 2);
-        hn = hn.toLowerCase();
+        const splitIndex = l.indexOf(':');
+        if (splitIndex == -1) {
+            entryBad = true;
+            continue;
+        }
+
+        const hv = l.substr(splitIndex + 1).trim();
+        const hn = l.substr(0, splitIndex).trim().toLowerCase();
+
         if (hn == 'uri') {
             entry.uri = hv.trim();
         } else {
@@ -525,9 +534,7 @@ const typemapParse = (str) => {
     }
 
     // EOF indicates the end of the last entry as well; flush it
-    if (entryValid(entry)) {
-        types.push(entry);
-    }
+    maybeFlushEntry();
 
     return types;
 };

@@ -501,6 +501,47 @@ Content-Language: en
         equal(tm[0].uri, 'document.html');
         deepStrictEqual(tm[0].headers, new Map());
     });
+    it('should handle headers with weird structure', () => {
+        const typemapContents = `
+URI: u
+# Extra space after header name
+A    :   aaa
+# Extra colons should be preserved
+B: b:bb:bbb
+# Empty header values should work
+C:
+        `;
+
+        const tm = typemapParse(typemapContents);
+        equal(tm.length, 1);
+
+        equal(tm[0].uri, 'u');
+        deepStrictEqual(tm[0].headers, createMap({
+            'a': [VT('aaa')],
+            'b': [VT('b:bb:bbb')],
+            'c': [VT('')],
+        }));
+    });
+    it('should drop entries with invalid headers', () => {
+        const typemapContents = `
+URI: u1
+A
+
+# We should require a blank line before parsing the next entry
+URI: u2
+A
+B: b
+URI: u3
+
+URI: u4
+        `;
+
+        const tm = typemapParse(typemapContents);
+        equal(tm.length, 1);
+
+        equal(tm[0].uri, 'u4');
+        deepStrictEqual(tm[0].headers, new Map());
+    });
 });
 
 describe('performTypemapNegotiation', () => {
