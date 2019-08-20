@@ -463,9 +463,9 @@ exports.awsPerformTypeNegotiation = awsPerformTypeNegotiation;
  *  https://httpd.apache.org/docs/current/mod/mod_negotiation.html#typemaps
  */
 const TypeMapEntry = class {
-    constructor() {
-        this.uri = undefined;
-        this.headers = new Map();
+    constructor(uri, headers) {
+        this.uri = uri;
+        this.headers = headers || new Map();
     }
 };
 exports.TypeMapEntry = TypeMapEntry;
