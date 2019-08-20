@@ -530,3 +530,36 @@ const typemapParse = (str) => {
     return types;
 };
 exports.typemapParse = typemapParse;
+
+/*
+ * Perform content negotiation based on client headers and a server typemap.
+ *
+ * clientHeaderMap is a Map of header names to an array of ValueTuples.
+ * serverTypemap is an array of TypeMapEntry objects
+ * whitelistMap is a Map of header names to a Set of string values
+ */
+const performTypemapNegotiation = (clientHeaderMap, serverTypemap, whitelistMap) => {
+    /* Negotiate Content-Type */
+    const clientAcceptValues = clientHeaderMap.has('accept') ? clientHeaderMap.get('accept') : []
+
+    // XXX: What do we do with no whitelist? Should we return a 406?
+    const whitelistAcceptValues = whitelistMap.has('accept') ? whitelistMap.get('accept') : null;
+
+    /*
+     * Filter out entries from the server typemap that do not match
+     *
+     * XXX: Rather than filtering, we should be accumulating a score so that at the end
+     *      of our runs, we can pick the alternative which is best suited given all of
+     *      the constraints. Right now, we can only pick a representation which is not
+     *      illegal.
+     */
+    serverTypemap = serverTypemap.filter((tme) => {
+        const serverAcceptValues = (tme.headers.has('content-type')) ? tme.headers.get('content-type') : [];
+        // XXX: How does performNegotiation handle an empty server list?
+        const sco = performTypeNegotiation(clientAcceptValues, serverAcceptValues, whitelistAcceptValues);
+        return sco != null;
+    })
+
+    return (serverTypemap.length == 0) ? null : serverTypemap[0];
+};
+exports.performTypemapNegotiation = performTypemapNegotiation;

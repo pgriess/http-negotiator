@@ -6,6 +6,7 @@ const {
     performNegotiation,
     performEncodingNegotiation,
     performTypeNegotiation,
+    performTypemapNegotiation,
     parseValueTuple,
     splitHeaderValue,
     mediaRangeValueMatch,
@@ -17,18 +18,23 @@ const {
     wildcardValueMatch,
     wildcardValueCompare,
     ValueTuple } = require('../index.js');
-const { deepStrictEqual, equal, ok } = require('assert');
+const { deepStrictEqual, equal, notEqual, ok } = require('assert');
 
 /*
  * Helper to create a Map from an Object.
  */
-const VP = (object) => {
+const createMap = (object) => {
     if (object === null || object === undefined) {
         object = {};
     }
 
     return new Map(Object.entries(object));
 };
+
+/*
+ * Helper to create value properties.
+ */
+const VP = createMap;
 
 /*
  * Helper to construct a ValueTuple from an Object
@@ -43,6 +49,13 @@ const VT = (value, object, score) => {
 const NR = (sv, cv, score) => {
     return { server: sv, client: cv, score: score };
 }
+
+/*
+ * Helper to create a TypeMapEntry from an Object.
+ */
+const TME = (uri, headersObject) => {
+    return new TypeMapEntry(uri, createMap(headersObject));
+};
 
 describe('splitHeaderValue()', () => {
     it('should split a simple single header', () => {
@@ -450,5 +463,23 @@ URI: document.html.de
 
         equal(tm[2].uri, 'document.html.fr');
         equal(tm[3].uri, 'document.html.de');
+    });
+});
+
+describe('performTypemapNegotiation', () => {
+    it('should negotiate between two variants', () => {
+        const tme = performTypemapNegotiation(
+            createMap({
+                'accept': [VT('image/*')]
+            }),
+            [
+                TME('html', {'content-type': [VT('text/html')]}),
+                TME('jpeg', {'content-type': [VT('image/jpeg')]})
+            ],
+            new Map([]),
+        );
+        notEqual(tme, null);
+        equal(tme.uri, 'jpeg');
+        deepStrictEqual(tme.headers, createMap({'content-type': [VT('image/jpeg')]}));
     });
 });
