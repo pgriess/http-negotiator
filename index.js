@@ -472,6 +472,18 @@ exports.TypeMapEntry = TypeMapEntry;
 
 /*
  * Parse a string into an array of TypeMapEntry objects.
+ *
+ * XXX: Normalize case
+ * 
+ * TODO: What is the order on which we should perform negotiation? Do we prefer
+ *       encoding over type, etc? There must be an RFC for this, right?
+ * 
+ * TODO: Should we support 'qs' as a synonym for 'q'. That is what the Apache
+ *       typemap spec indiciates.
+ * 
+ * TODO: Write an aws* wrapper for negotiation across all indices.
+ * 
+ * TODO: Strip entries without a URI field.
  */
 const typemapParse = (str) => {
     const lines = str.split(/\n/);
