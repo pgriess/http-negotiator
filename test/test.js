@@ -488,6 +488,19 @@ URI: document.HtMl.en
             ])
         );
     });
+    it('should skip entries with no URI', () => {
+        const typemapContents = `
+URI: document.html
+
+Content-Language: en
+        `;
+
+        const tm = typemapParse(typemapContents);
+        equal(tm.length, 1);
+
+        equal(tm[0].uri, 'document.html');
+        deepStrictEqual(tm[0].headers, new Map());
+    });
 });
 
 describe('performTypemapNegotiation', () => {

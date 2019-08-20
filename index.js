@@ -480,10 +480,13 @@ exports.TypeMapEntry = TypeMapEntry;
  *       typemap spec indiciates.
  * 
  * TODO: Write an aws* wrapper for negotiation across all indices.
- * 
- * TODO: Strip entries without a URI field.
  */
 const typemapParse = (str) => {
+    // Is this TypeMapEntry valid for accumulating into our list?
+    const entryValid = (tme) => {
+        return tme && tme.uri && tme.uri.length > 0;
+    };
+
     const lines = str.split(/\n/);
 
     let types = [];
@@ -499,11 +502,11 @@ const typemapParse = (str) => {
 
         // An empty lines indicates the end of an entry; flush it
         if (l.length == 0) {
-            if (entry) {
+            if (entryValid(entry)) {
                 types.push(entry);
-                entry = undefined;
             }
 
+            entry = undefined;
             continue;
         }
 
@@ -522,7 +525,7 @@ const typemapParse = (str) => {
     }
 
     // EOF indicates the end of the last entry as well; flush it
-    if (entry) {
+    if (entryValid(entry)) {
         types.push(entry);
     }
 
