@@ -284,50 +284,52 @@ exports.performNegotiation = performNegotiation;
  *
  * Typical applications should not call this directly.
  */
-const performEncodingNegotiation = (clientValues, serverValues) => {
+const performEncodingNegotiation = (clientValues, serverValues, whitelist) => {
     const IDENTITY = new ValueTuple('identity', new Map([['q', 1]]));
+    const hasIdentity = clientValues.some((v) => {
+        return wildcardValueMatch(IDENTITY, v); }
+    );
 
     /*
-     * From RFC7231 5.3.4, a client value at all means they will accept
-     * anything. Pick the highest-scoring server value and go with that.
+     * From RFC7231 5.3.4, no client value at all means they will accept
+     * anything. Use the server's values here so that we can go through the
+     * normal flow below.
+     * 
+     * NOTE: We must apply a whitelist here, as without this we may end
+     *       up using a Content-Encoding that the client is un-prepared
+     *       for. While this is spec-compliant behavior it breaks in
+     *       practice for more novel Content-Encodings, e.g. br.
      */
     if (clientValues.length === 0) {
-        let sv = Array
-            .from(serverValues)
-            .sort((a, b) => { return a.q - b.q; })
-            .pop();
-        sv.score = sv.q;
-        return sv;
+        clientValues = serverValues.filter((v) => {
+            return !whitelist ||
+                v.value === 'identity' ||
+                whitelist.has(v.value)
+        });
     }
 
-    /*
-     * TODO: From RFC7231 5.3.4, a client with an empty value indicates that
-     *       they want the ndentity encoding.
-     */
-
-    /*
-     * If no parsed values match 'identity' (i.e. it has not been overridden)
-     * add it as a default option per RFC 7231 section 5.3.4.
-     *
-     * XXX: The RFC does not specify a default weight. We pick 1, but a case
-     *      could be made to pick something like 0.1 with the assumption that
-     *      anything else specified explicitly is likely to be more desirable than
-     *      this default.
-     *
-     * XXX: Does this imply that we should attempt CN *without* this implied value
-     *      first and, only if there are no matches, then add it? That would make it
-     *      the absolute last option which feels like it's really the intent of the
-     *      RFC.
-     */
-    if (!clientValues.some((v) => { return wildcardValueMatch(IDENTITY, v); })) {
-        clientValues.unshift(IDENTITY);
-    }
-
-    const negotiatedValues = performNegotiation(
+    let negotiatedValues = performNegotiation(
         clientValues,
         serverValues,
         wildcardValueMatch,
         wildcardValueCompare);
+
+    /*
+     * If we got no results and the client didn't specify 'identity', try again
+     * with it as a default option per RFC 7231 section 5.3.4.
+     *
+     * The RFC does not specify a default weight. If we picked one, and folded
+     * this into the first negotiation pass we might end up preferring it to
+     * something else. Instead, wait until we've failed to match anything and
+     * then try again with it by itself.
+     */
+    if (negotiatedValues.length === 0 && !hasIdentity) {
+        negotiatedValues = performNegotiation(
+            [IDENTITY],
+            serverValues,
+            wildcardValueMatch,
+            wildcardValueCompare);
+    }
 
     return (negotiatedValues.length == 0) ? null : negotiatedValues[0].server;
 };

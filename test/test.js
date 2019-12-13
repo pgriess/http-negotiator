@@ -324,11 +324,17 @@ describe('performEncodingNegotiation', () => {
 
         deepStrictEqual(performEncodingNegotiation(cv, sv), sv[1]);
     });
-    it('should assume an implicit identity;q=1 value', () => {
-        const cv = [VT('gzip', {q: 0.5})];
+    it('implicit identity is added to client set', () => {
+        const cv = [VT('qqq', {q: 0.5})];
         const sv = [VT('identity', {q: 1}), VT('gzip', {q: 1})];
 
         deepStrictEqual(performEncodingNegotiation(cv, sv), sv[0]);
+    });
+    it('implicit identity is evaluated after other encodings', () => {
+        const cv = [VT('gzip', {q: 0.5})];
+        const sv = [VT('identity', {q: 1}), VT('gzip', {q: 1})];
+
+        deepStrictEqual(performEncodingNegotiation(cv, sv), sv[1]);
     });
     it('should allow implicit identity value to be overridden explicitly', () => {
         const cv = [VT('gzip', {q: 0.5}), VT('identity', {q: 0})];
@@ -341,6 +347,18 @@ describe('performEncodingNegotiation', () => {
         const sv = [VT('identity', {q: 1}), VT('gzip', {q: 1})];
 
         deepStrictEqual(performEncodingNegotiation(cv, sv), sv[1]);
+    });
+    it('should respect the whitelist if no Accept-Encoding found', () => {
+        const cv = [];
+        const sv = [VT('gzip', {q: 0.5}), VT('br', {q: 1}), VT('identity', {q: 0.1})];
+
+        deepStrictEqual(performEncodingNegotiation(cv, sv, new Set(['gzip'])), sv[0]);
+    });
+    it('should add identity in the whitelist if no Accept-Encoding found', () => {
+        const cv = [];
+        const sv = [VT('gzip', {q: 0.5}), VT('br', {q: 1}), VT('identity', {q: 0.1})];
+
+        deepStrictEqual(performEncodingNegotiation(cv, sv, new Set(['bort'])), sv[2]);
     });
 });
 
