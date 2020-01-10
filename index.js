@@ -557,29 +557,64 @@ exports.typemapParse = typemapParse;
  * clientHeaderMap is a Map of header names to an array of ValueTuples.
  * serverTypemap is an array of TypeMapEntry objects
  * whitelistMap is a Map of header names to a Set of string values
+ * 
+ * XXX: In the case where the typemap does not contain any 'content-type' (or
+ *      'content-encoding') headers, this results in an empty result list.
+ *      To combat this, we are currently ensuring that all entries in the
+ *      typemap have the full compliment of headers. This seems correct and
+ *      necessary? Do the typemap docs indicate anything here?
  */
-const performTypemapNegotiation = (clientHeaderMap, serverTypemap, whitelistMap) => {
-    /* Negotiate Content-Type */
-    const clientAcceptValues = clientHeaderMap.has('accept') ? clientHeaderMap.get('accept') : []
+const performTypemapNegotiation = (headers, typemap, whitelistMap) => {
+    /* Accept => Content-Type */
+    const clientTypeValues = headers.has('accept') ?
+        headers.get('accept') : []
+    const whitelistTypeValues = whitelistMap.has('accept') ?
+        whitelistMap.get('accept') : null;
+    typemap = typemap.filter((tme) => {
+        const serverTypeValues = (tme.headers.has('content-type')) ?
+            tme.headers.get('content-type') : [];
+        return performTypeNegotiation(
+            clientTypeValues, serverTypeValues, whitelistTypeValues) != null;
+    });
 
-    // XXX: What do we do with no whitelist? Should we return a 406?
-    const whitelistAcceptValues = whitelistMap.has('accept') ? whitelistMap.get('accept') : null;
+    /* Accept-Encoding => Content-Encoding */
+    const clientEncodingValues = headers.has('accept-encoding') ?
+        headers.get('accept-encoding') : []
+    const whitelistEncodingValues = whitelistMap.has('accept-encoding') ?
+        whitelistMap.get('accept-encoding') : null;
+    typemap = typemap.filter((tme) => {
+        const serverEncodingValues = (tme.headers.has('content-encoding')) ?
+            tme.headers.get('content-encoding') : [];
+        return performEncodingNegotiation(
+            clientEncodingValues,
+            serverEncodingValues,
+            whitelistEncodingValues) != null;
+    });
 
     /*
-     * Filter out entries from the server typemap that do not match
-     *
-     * XXX: Rather than filtering, we should be accumulating a score so that at the end
-     *      of our runs, we can pick the alternative which is best suited given all of
-     *      the constraints. Right now, we can only pick a representation which is not
-     *      illegal.
+     * TODO: Rather than filtering, we should be accumulating a score so that at the end
+     *       of our runs, we can pick the alternative which is best suited given all of
+     *       the constraints. Right now, we can only pick a representation which is not
+     *       illegal.
      */
-    serverTypemap = serverTypemap.filter((tme) => {
-        const serverAcceptValues = (tme.headers.has('content-type')) ? tme.headers.get('content-type') : [];
-        // XXX: How does performNegotiation handle an empty server list?
-        const sco = performTypeNegotiation(clientAcceptValues, serverAcceptValues, whitelistAcceptValues);
-        return sco != null;
-    })
-
-    return (serverTypemap.length == 0) ? null : serverTypemap[0];
+    return (typemap.length == 0) ? null : typemap[0];
 };
 exports.performTypemapNegotiation = performTypemapNegotiation;
+
+/*
+ * AWS wrapper around performTypemapNegotiation().
+ */
+const awsPerformTypemapNegotiation = (headers, typemap, ...rest) => {
+    let parsedHeaders = new Map();
+
+    if ('accept' in headers) {
+        parsedHeaders.set('accept', awsSplitHeaderValue(headers['accept']).map(parseValueTuple));
+    }
+
+    if ('accept-encoding' in headers) {
+        parsedHeaders.set('accept-encoding', awsSplitHeaderValue(headers['accept-encoding']).map(parseValueTuple));
+    }
+
+    return performTypemapNegotiation(parsedHeaders, typemap, ...rest);
+};
+exports.awsPerformTypemapNegotiation = awsPerformTypemapNegotiation;

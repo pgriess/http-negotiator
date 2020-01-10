@@ -569,13 +569,23 @@ describe('performTypemapNegotiation', () => {
                 'accept': [VT('image/*')]
             }),
             [
-                TME('html', {'content-type': [VT('text/html')]}),
-                TME('jpeg', {'content-type': [VT('image/jpeg')]})
+                TME('html', {
+                    'content-type': [VT('text/html')],
+                    'content-encoding': [VT('identity')]}),
+                TME('jpeg', {
+                    'content-type': [VT('image/jpeg')],
+                    'content-encoding': [VT('identity')]})
             ],
             new Map([]),
         );
         notEqual(tme, null);
         equal(tme.uri, 'jpeg');
-        deepStrictEqual(tme.headers, createMap({'content-type': [VT('image/jpeg')]}));
+        deepStrictEqual(
+            tme.headers,
+            createMap({
+                'content-type': [VT('image/jpeg')],
+                'content-encoding': [VT('identity')]
+            })
+        );
     });
 });
