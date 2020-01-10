@@ -423,6 +423,12 @@ exports.awsSplitHeaderValue = awsSplitHeaderValue;
 
 /*
  * AWS wrapper around performEncodingNegotiation().
+ *
+ * TODO: RFC 7231 Section 5.3.4 states that we should treat a missing
+ *       Accept-Encoding header as "accept anything", but an empty header
+ *       as "accept nothing". Right now we are collapsing both cases to
+ *       an empty list when invoking performEncodingNegotiation(). We should
+ *       probably seprate them, e.g. by using null or undefined.
  */
 const awsPerformEncodingNegotiation = (headers, serverValues, ...rest) => {
     return performEncodingNegotiation(
@@ -437,6 +443,9 @@ exports.awsPerformEncodingNegotiation = awsPerformEncodingNegotiation;
 
 /*
  * AWS wrapper around performTypeNegotiation().
+ *
+ * TODO: Same empty vs missing header handling as as
+ *       awsPerformEncodingNegotiation.
  */
 const awsPerformTypeNegotiation = (headers, serverValues, ...rest) => {
     return performTypeNegotiation(
