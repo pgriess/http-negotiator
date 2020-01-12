@@ -47,6 +47,10 @@ const VT = (value, object, score) => {
  * Helper to create a negotiation result returned from performNegotiation().
  */
 const NR = (sv, cv, score) => {
+    if (score === undefined) {
+        score = sv.q * cv.q;
+    }
+
     return { server: sv, client: cv, score: score };
 }
 
@@ -322,43 +326,56 @@ describe('performEncodingNegotiation', () => {
         const cv = [];
         const sv = [VT('gzip', {q: 0.5}), VT('br', {q: 1}), VT('identity', {q: 0.1})];
 
-        deepStrictEqual(performEncodingNegotiation(cv, sv), sv[1]);
+        // NOTE: The client match is sv[1] because of an implementation detail in
+        //       performEncodingNegotiation() where we clone the server list if there
+        //       is no client list. Is this behavior we want to rely on? Or should we
+        //       support some mechanism to indicate that there was no client match?
+        deepStrictEqual(performEncodingNegotiation(cv, sv), NR(sv[1], sv[1]));
     });
     it('implicit identity is added to client set', () => {
         const cv = [VT('qqq', {q: 0.5})];
         const sv = [VT('identity', {q: 1}), VT('gzip', {q: 1})];
 
-        deepStrictEqual(performEncodingNegotiation(cv, sv), sv[0]);
+        // NOTE: We're returning a reference to an internal ValueType.
+        deepStrictEqual(
+            performEncodingNegotiation(cv, sv),
+            NR(sv[0], VT('identity', {q: 1})));
     });
     it('implicit identity is evaluated after other encodings', () => {
         const cv = [VT('gzip', {q: 0.5})];
         const sv = [VT('identity', {q: 1}), VT('gzip', {q: 1})];
 
-        deepStrictEqual(performEncodingNegotiation(cv, sv), sv[1]);
+        deepStrictEqual(performEncodingNegotiation(cv, sv), NR(sv[1], cv[0]));
     });
     it('should allow implicit identity value to be overridden explicitly', () => {
         const cv = [VT('gzip', {q: 0.5}), VT('identity', {q: 0})];
         const sv = [VT('identity', {q: 1}), VT('gzip', {q: 1})];
 
-        deepStrictEqual(performEncodingNegotiation(cv, sv), sv[1]);
+        deepStrictEqual(performEncodingNegotiation(cv, sv), NR(sv[1], cv[0]));
     });
     it('should allow implicit identity value to be overridden by wildcard', () => {
         const cv = [VT('gzip', {q: 0.5}), VT('*', {q: 0})];
         const sv = [VT('identity', {q: 1}), VT('gzip', {q: 1})];
 
-        deepStrictEqual(performEncodingNegotiation(cv, sv), sv[1]);
+        deepStrictEqual(performEncodingNegotiation(cv, sv), NR(sv[1], cv[0]));
     });
     it('should respect the whitelist if no Accept-Encoding found', () => {
         const cv = [];
         const sv = [VT('gzip', {q: 0.5}), VT('br', {q: 1}), VT('identity', {q: 0.1})];
 
-        deepStrictEqual(performEncodingNegotiation(cv, sv, new Set(['gzip'])), sv[0]);
+        // NOTE: The client match is the server value due to implementation detail
+        deepStrictEqual(
+            performEncodingNegotiation(cv, sv, new Set(['gzip'])),
+            NR(sv[0], sv[0]));
     });
     it('should add identity in the whitelist if no Accept-Encoding found', () => {
         const cv = [];
         const sv = [VT('gzip', {q: 0.5}), VT('br', {q: 1}), VT('identity', {q: 0.1})];
 
-        deepStrictEqual(performEncodingNegotiation(cv, sv, new Set(['bort'])), sv[2]);
+        // NOTE: The client match is the server value due to implementation detail
+        deepStrictEqual(
+            performEncodingNegotiation(cv, sv, new Set(['bort'])),
+            NR(sv[2], sv[2]));
     });
 });
 
@@ -367,55 +384,62 @@ describe('performTypeNegotiation', () => {
         const cv = [];
         const sv = [VT('image/webp', {q: 1}), VT('image/jpeg', {q: 0.9})];
 
-        deepStrictEqual(performTypeNegotiation(cv, sv), sv[0]);
+        // NOTE: The client match is an internal value
+        deepStrictEqual(performTypeNegotiation(cv, sv), NR(sv[0], VT('*/*')));
     });
     it('should prefer a more specific match', () => {
         const cv = [VT('image/webp'), VT('image/*', {q: 0.8})];
         const sv = [VT('image/webp', {q: 1.0}), VT('image/jpeg', {q: 0.9})];
 
-        deepStrictEqual(performTypeNegotiation(cv, sv), sv[0]);
+        deepStrictEqual(performTypeNegotiation(cv, sv), NR(sv[0], cv[0]));
     });
     it('should fall back to wildard match', () => {
         const cv = [VT('image/webp'), VT('image/*', {q: 0.8})];
         const sv = [VT('image/bmp', {q: 0.8}), VT('image/jpeg', {q: 0.9})];
 
-        deepStrictEqual(performTypeNegotiation(cv, sv), sv[1]);
+        deepStrictEqual(performTypeNegotiation(cv, sv), NR(sv[1], cv[1]));
     });
     it('should consider full wildcard as having default q=0.01', () => {
         const cv = [VT('text/plain'), VT('*/*')];
 
         const sv0 = [VT('text/plain', {q: 0.011}), VT('text/html')];
-        deepStrictEqual(performTypeNegotiation(cv, sv0), sv0[0]);
+        deepStrictEqual(performTypeNegotiation(cv, sv0), NR(sv0[0], cv[0]));
 
         const sv1 = [VT('text/plain', {q: 0.009}), VT('text/html')];
-        deepStrictEqual(performTypeNegotiation(cv, sv1), sv1[1]);
+        deepStrictEqual(performTypeNegotiation(cv, sv1), NR(sv1[1], cv[1]));
     });
     it('should consider subtype wildcard as having default q=0.02', () => {
         const cv = [VT('text/plain'), VT('text/*')];
 
         const sv0 = [VT('text/plain', {q: 0.021}), VT('text/html')];
-        deepStrictEqual(performTypeNegotiation(cv, sv0), sv0[0]);
+        deepStrictEqual(
+            performTypeNegotiation(cv, sv0),
+            NR(sv0[0], cv[0]));
 
         const sv1 = [VT('text/plain', {q: 0.019}), VT('text/html')];
-        deepStrictEqual(performTypeNegotiation(cv, sv1), sv1[1]);
+        deepStrictEqual(
+            performTypeNegotiation(cv, sv1),
+            NR(sv1[1], cv[1], 0.02));
     });
     it('should consider wildcards for low q-values if any q-values have been specified', () => {
         const cv = [VT('text/plain', {q: 1.0}), VT('*/*')];
         const sv = [VT('text/plain', {q: 0.9}), VT('text/html')];
 
-        deepStrictEqual(performTypeNegotiation(cv, sv), sv[1]);
+        deepStrictEqual(performTypeNegotiation(cv, sv), NR(sv[1], cv[1]));
     });
     it('should not override explicitly-specified wildcard qvalue', () => {
         const cv = [VT('text/plain'), VT('*/*', {q: 1})];
         const sv = [VT('text/plain', {q: 0.001}), VT('text/html')];
 
-        deepStrictEqual(performTypeNegotiation(cv, sv), sv[1]);
+        deepStrictEqual(performTypeNegotiation(cv, sv), NR(sv[1], cv[1]));
     });
     it('should apply a type whitelist if specified', () => {
         const cv = [VT('image/webp'), VT('image/*')];
         const sv = [VT('image/bmp', {q: 0.8}), VT('image/jpeg', {q: 0.9})];
 
-        deepStrictEqual(performTypeNegotiation(cv, sv, new Set(['image/bmp'])), sv[0]);
+        deepStrictEqual(
+            performTypeNegotiation(cv, sv, new Set(['image/bmp'])),
+            NR(sv[0], cv[1]));
         deepStrictEqual(performTypeNegotiation(cv, sv, new Set()), null);
     });
 });

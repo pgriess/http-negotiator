@@ -331,7 +331,7 @@ const performEncodingNegotiation = (clientValues, serverValues, whitelist) => {
             wildcardValueCompare);
     }
 
-    return (negotiatedValues.length == 0) ? null : negotiatedValues[0].server;
+    return (negotiatedValues.length == 0) ? null : negotiatedValues[0];
 };
 exports.performEncodingNegotiation = performEncodingNegotiation;
 
@@ -405,7 +405,7 @@ const performTypeNegotiation = (clientValues, serverValues, whitelist) => {
         });
     }
 
-    return (negotiatedValues.length == 0) ? null : negotiatedValues[0].server;
+    return (negotiatedValues.length == 0) ? null : negotiatedValues[0];
 };
 exports.performTypeNegotiation = performTypeNegotiation;
 
@@ -431,13 +431,15 @@ exports.awsSplitHeaderValue = awsSplitHeaderValue;
  *       probably seprate them, e.g. by using null or undefined.
  */
 const awsPerformEncodingNegotiation = (headers, serverValues, ...rest) => {
-    return performEncodingNegotiation(
+    const v = performEncodingNegotiation(
         ('accept-encoding' in headers) ?
             awsSplitHeaderValue(headers['accept-encoding'])
                 .map(parseValueTuple) :
             [],
         serverValues,
         ...rest);
+
+    return (v === null) ? null : v.server;
 };
 exports.awsPerformEncodingNegotiation = awsPerformEncodingNegotiation;
 
@@ -448,13 +450,15 @@ exports.awsPerformEncodingNegotiation = awsPerformEncodingNegotiation;
  *       awsPerformEncodingNegotiation.
  */
 const awsPerformTypeNegotiation = (headers, serverValues, ...rest) => {
-    return performTypeNegotiation(
+    const v = performTypeNegotiation(
         ('accept' in headers) ?
             awsSplitHeaderValue(headers['accept'])
                 .map(parseValueTuple) :
             [],
         serverValues,
         ...rest);
+
+    return (v === null) ? null : v.server;
 };
 exports.awsPerformTypeNegotiation = awsPerformTypeNegotiation;
 
