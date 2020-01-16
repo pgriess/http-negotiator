@@ -612,4 +612,50 @@ describe('performTypemapNegotiation', () => {
             })
         );
     });
+    it('should fail if no variants are acceptable', () => {
+        const tme = performTypemapNegotiation(
+            createMap({
+                'accept': [VT('image/*')],
+                'accept-encoding': [VT('gzip')],
+            }),
+            [
+                TME('jpeg', {
+                    'content-type': [VT('image/jpeg')],
+                    'content-encoding': [VT('br')]}),
+                TME('html', {
+                    'content-type': [VT('text/html')],
+                    'content-encoding': [VT('gzip')]})
+            ],
+            new Map([]),
+        );
+        equal(tme, null);
+    });
+    it('should select variants based on score', () => {
+        const tme = performTypemapNegotiation(
+            createMap({
+                'accept': [VT('image/*')]
+            }),
+            [
+                TME('gif', {
+                    'content-type': [VT('image/gif', {q: 0.5})],
+                    'content-encoding': [VT('identity')]}),
+                TME('jpeg', {
+                    'content-type': [VT('image/jpeg', {q: 0.6})],
+                    'content-encoding': [VT('identity')]}),
+                TME('webp', {
+                    'content-type': [VT('image/webp')],
+                    'content-encoding': [VT('identity')]}),
+            ],
+            new Map([]),
+        );
+        notEqual(tme, null);
+        equal(tme.uri, 'webp');
+        deepStrictEqual(
+            tme.headers,
+            createMap({
+                'content-type': [VT('image/webp')],
+                'content-encoding': [VT('identity')]
+            })
+        );
+    });
 });

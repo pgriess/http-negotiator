@@ -562,6 +562,12 @@ exports.typemapParse = typemapParse;
  * serverTypemap is an array of TypeMapEntry objects
  * whitelistMap is a Map of header names to a Set of string values
  * 
+ * This works by creating a list of (TypeMapEntry, score) tuples and
+ * iteratively processing it using each type of negotiation (content type,
+ * content encoding, etc), culling out entries that do not pass negotiation.
+ * While this is going on, we are tracking a cumulative score for each entry.
+ * When this process is done, we return the highest-scoring entry remaining.
+ * 
  * XXX: In the case where the typemap does not contain any 'content-type' (or
  *      'content-encoding') headers, this results in an empty result list.
  *      To combat this, we are currently ensuring that all entries in the
@@ -569,39 +575,57 @@ exports.typemapParse = typemapParse;
  *      necessary? Do the typemap docs indicate anything here?
  */
 const performTypemapNegotiation = (headers, typemap, whitelistMap) => {
+    let typemapTuples = typemap.map((tme) => { return [tme, 1]; });
+    
+    /* Filter out typemap entries that are disqualified */
+    const typemapTupleFilter = (tmt) => { return tmt[0] !== null && tmt[1] >= 0; };
+
+    /* Sort with best match first */
+    const typemapTupleSort = (a, b) => { return b[1] - a[1]; };
+
     /* Accept => Content-Type */
     const clientTypeValues = headers.has('accept') ?
         headers.get('accept') : []
     const whitelistTypeValues = whitelistMap.has('accept') ?
         whitelistMap.get('accept') : null;
-    typemap = typemap.filter((tme) => {
-        const serverTypeValues = (tme.headers.has('content-type')) ?
-            tme.headers.get('content-type') : [];
-        return performTypeNegotiation(
-            clientTypeValues, serverTypeValues, whitelistTypeValues) != null;
-    });
+    typemapTuples = typemapTuples
+        .map((tmt) => {
+            const [tme, tms] = tmt;
+            const serverTypeValues = (tme.headers.has('content-type')) ?
+                tme.headers.get('content-type') : [];
+            const nr = performTypeNegotiation(
+                clientTypeValues, serverTypeValues, whitelistTypeValues);
+
+            return (nr === null || nr.score <= 0) ?
+                [null, 0] :
+                [tme, tms * nr.score];
+        })
+        .filter(typemapTupleFilter);
 
     /* Accept-Encoding => Content-Encoding */
     const clientEncodingValues = headers.has('accept-encoding') ?
         headers.get('accept-encoding') : []
     const whitelistEncodingValues = whitelistMap.has('accept-encoding') ?
         whitelistMap.get('accept-encoding') : null;
-    typemap = typemap.filter((tme) => {
-        const serverEncodingValues = (tme.headers.has('content-encoding')) ?
-            tme.headers.get('content-encoding') : [];
-        return performEncodingNegotiation(
-            clientEncodingValues,
-            serverEncodingValues,
-            whitelistEncodingValues) != null;
-    });
+    typemapTuples = typemapTuples
+        .map((tmt) => {
+            const [tme, tms] = tmt;
+            const serverEncodingValues = (tme.headers.has('content-encoding')) ?
+                tme.headers.get('content-encoding') : [];
+            const nr = performEncodingNegotiation(
+                clientEncodingValues,
+                serverEncodingValues,
+                whitelistEncodingValues);
 
-    /*
-     * TODO: Rather than filtering, we should be accumulating a score so that at the end
-     *       of our runs, we can pick the alternative which is best suited given all of
-     *       the constraints. Right now, we can only pick a representation which is not
-     *       illegal.
-     */
-    return (typemap.length == 0) ? null : typemap[0];
+            return (nr === null || nr.score <= 0) ?
+                [null, 0] :
+                [tme, tms * nr.score];
+        })
+        .filter(typemapTupleFilter);
+
+    return (typemapTuples.length == 0) ?
+        null :
+        typemapTuples.sort(typemapTupleSort)[0][0];
 };
 exports.performTypemapNegotiation = performTypemapNegotiation;
 
