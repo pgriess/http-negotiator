@@ -1,5 +1,5 @@
 {
-    "name": "http-content-negotiation",
+    "name": "http-negotiator",
     "version": "1.0.0",
     "author": "Peter Griess <pg@std.in>",
     "description": "Perform HTTP content negotiation",
