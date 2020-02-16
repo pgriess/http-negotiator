@@ -488,15 +488,10 @@ exports.TypeMapEntry = TypeMapEntry;
 /*
  * Parse a string into an array of TypeMapEntry objects.
  *
- * TODO: What is the order on which we should perform negotiation? Do we prefer
- *       encoding over type, etc? There must be an RFC for this, right?
- * 
- * TODO: Should we support 'qs' as a synonym for 'q'. That is what the Apache
- *       typemap spec indiciates.
- * 
- * TODO: Write an aws* wrapper for negotiation across all indices.
- * 
- * TODO: Drop subsequent instances of the same URI? Return a map?
+ * TODO: Should we support 'qs' as a synonym for 'q'? The Apache typemap spec
+ *       indiciates 'qs' is quality score parameter that they pay attention to.
+ *
+ * TODO: Except on subsequent instances of the same URI.
  */
 const typemapParse = (str) => {
     const lines = str.split(/\n/);
@@ -573,6 +568,8 @@ exports.typemapParse = typemapParse;
  *      To combat this, we are currently ensuring that all entries in the
  *      typemap have the full compliment of headers. This seems correct and
  *      necessary? Do the typemap docs indicate anything here?
+ *
+ * TODO: Interpret missing content-encoding as indicating 'identity'.
  */
 const performTypemapNegotiation = (headers, typemap, whitelistMap) => {
     let typemapTuples = typemap.map((tme) => { return [tme, 1]; });
