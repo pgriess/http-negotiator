@@ -294,7 +294,7 @@ const performEncodingNegotiation = (clientValues, serverValues, whitelist) => {
      * From RFC7231 5.3.4, no client value at all means they will accept
      * anything. Use the server's values here so that we can go through the
      * normal flow below.
-     * 
+     *
      * NOTE: We must apply a whitelist here, as without this we may end
      *       up using a Content-Encoding that the client is un-prepared
      *       for. While this is spec-compliant behavior it breaks in
@@ -471,10 +471,10 @@ exports.awsPerformTypeNegotiation = awsPerformTypeNegotiation;
  * preferences. This facilitates a single universal content negotiation
  * algorithm to execute based on server data from a typemap and client data
  * from the HTTP headers.
- * 
+ *
  * The concept of a type map and the syntax is defined by the
  * Apache webserver documentation at
- * 
+ *
  *  https://httpd.apache.org/docs/current/mod/mod_negotiation.html#typemaps
  */
 const TypeMapEntry = class {
@@ -561,13 +561,13 @@ exports.typemapParse = typemapParse;
  * clientHeaderMap is a Map of header names to an array of ValueTuples.
  * serverTypemap is an array of TypeMapEntry objects
  * whitelistMap is a Map of header names to a Set of string values
- * 
+ *
  * This works by creating a list of (TypeMapEntry, score) tuples and
  * iteratively processing it using each type of negotiation (content type,
  * content encoding, etc), culling out entries that do not pass negotiation.
  * While this is going on, we are tracking a cumulative score for each entry.
  * When this process is done, we return the highest-scoring entry remaining.
- * 
+ *
  * XXX: In the case where the typemap does not contain any 'content-type' (or
  *      'content-encoding') headers, this results in an empty result list.
  *      To combat this, we are currently ensuring that all entries in the
@@ -576,7 +576,7 @@ exports.typemapParse = typemapParse;
  */
 const performTypemapNegotiation = (headers, typemap, whitelistMap) => {
     let typemapTuples = typemap.map((tme) => { return [tme, 1]; });
-    
+
     /* Filter out typemap entries that are disqualified */
     const typemapTupleFilter = (tmt) => { return tmt[0] !== null && tmt[1] >= 0; };
 
