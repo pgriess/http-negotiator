@@ -339,7 +339,7 @@ describe('performEncodingNegotiation', () => {
         // NOTE: We're returning a reference to an internal ValueType.
         deepStrictEqual(
             performEncodingNegotiation(cv, sv),
-            NR(sv[0], VT('identity', {q: 1})));
+            NR(sv[0], VT('identity')));
     });
     it('implicit identity is evaluated after other encodings', () => {
         const cv = [VT('gzip', {q: 0.5})];
@@ -656,6 +656,24 @@ describe('performTypemapNegotiation', () => {
                 'content-type': [VT('image/webp')],
                 'content-encoding': [VT('identity')]
             })
+        );
+    });
+    it('should assume identity encoding if missing in typemap entry', () => {
+        const tme = performTypemapNegotiation(
+            createMap({
+                'accept-encoding': [VT('gzip'), VT('identity')]
+            }),
+            [
+                TME('identity', {'content-type': [VT('text/html')]})
+            ],
+            new Map([]),
+        );
+        notEqual(tme, null);
+        equal(tme.uri, 'identity');
+        deepStrictEqual(
+            tme.headers,
+            createMap({
+                'content-type': [VT('text/html')]})
         );
     });
 });

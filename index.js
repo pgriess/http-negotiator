@@ -34,6 +34,10 @@ const ValueTuple = class {
 };
 exports.ValueTuple = ValueTuple;
 
+/* Some constant ValueTuple instances */
+const VT_IDENTITY = new ValueTuple('identity');
+const VT_STAR_STAR = new ValueTuple('*/*');
+
 /*
  * Matchers and comparators
  *
@@ -285,9 +289,8 @@ exports.performNegotiation = performNegotiation;
  * Typical applications should not call this directly.
  */
 const performEncodingNegotiation = (clientValues, serverValues, whitelist) => {
-    const IDENTITY = new ValueTuple('identity', new Map([['q', 1]]));
     const hasIdentity = clientValues.some((v) => {
-        return wildcardValueMatch(IDENTITY, v); }
+        return wildcardValueMatch(VT_IDENTITY, v); }
     );
 
     /*
@@ -325,7 +328,7 @@ const performEncodingNegotiation = (clientValues, serverValues, whitelist) => {
      */
     if (negotiatedValues.length === 0 && !hasIdentity) {
         negotiatedValues = performNegotiation(
-            [IDENTITY],
+            [VT_IDENTITY],
             serverValues,
             wildcardValueMatch,
             wildcardValueCompare);
@@ -350,7 +353,7 @@ const performTypeNegotiation = (clientValues, serverValues, whitelist) => {
      * that the user agent will accept any media type in response."
      */
     if (clientValues.length === 0) {
-        clientValues = [new ValueTuple('*/*')];
+        clientValues = [VT_STAR_STAR];
     }
 
     /*
@@ -562,14 +565,6 @@ exports.typemapParse = typemapParse;
  * content encoding, etc), culling out entries that do not pass negotiation.
  * While this is going on, we are tracking a cumulative score for each entry.
  * When this process is done, we return the highest-scoring entry remaining.
- *
- * XXX: In the case where the typemap does not contain any 'content-type' (or
- *      'content-encoding') headers, this results in an empty result list.
- *      To combat this, we are currently ensuring that all entries in the
- *      typemap have the full compliment of headers. This seems correct and
- *      necessary? Do the typemap docs indicate anything here?
- *
- * TODO: Interpret missing content-encoding as indicating 'identity'.
  */
 const performTypemapNegotiation = (headers, typemap, whitelistMap) => {
     let typemapTuples = typemap.map((tme) => { return [tme, 1]; });
@@ -608,7 +603,8 @@ const performTypemapNegotiation = (headers, typemap, whitelistMap) => {
         .map((tmt) => {
             const [tme, tms] = tmt;
             const serverEncodingValues = (tme.headers.has('content-encoding')) ?
-                tme.headers.get('content-encoding') : [];
+                tme.headers.get('content-encoding') :
+                [VT_IDENTITY];
             const nr = performEncodingNegotiation(
                 clientEncodingValues,
                 serverEncodingValues,
